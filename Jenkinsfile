@@ -17,33 +17,13 @@ pipeline {
 
         stage('Unit Test') {
             steps {
-                bat '''
-                for /d %%i in (*) do (
-                    if exist %%i\\go.mod (
-                        echo ===== UNIT TEST %%i =====
-                        cd %%i
-                        go test ./...
-                        if errorlevel 1 exit /b 1
-                        cd ..
-                    )
-                )
-                '''
+                bat 'go test ./...'
             }
         }
 
         stage('Vet') {
             steps {
-                bat '''
-                for /d %%i in (*) do (
-                    if exist %%i\\go.mod (
-                        echo ===== VET %%i =====
-                        cd %%i
-                        go vet ./...
-                        if errorlevel 1 exit /b 1
-                        cd ..
-                    )
-                )
-                '''
+                bat 'go vet ./...'
             }
         }
 
@@ -60,10 +40,7 @@ pipeline {
         stage('Functional Test') {
             steps {
                 bat '''
-                echo Starting app...
-                cd PaymentService
-                start /b go run main.go
-
+                start /b go run PaymentService/main.go
                 timeout /t 5
 
                 curl -X POST http://localhost:8081/payment ^
@@ -84,18 +61,13 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                bat '''
-                kubectl apply -f k8s/
-                '''
+                bat 'kubectl apply -f k8s/'
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                bat '''
-                kubectl get pods
-                kubectl get svc
-                '''
+                bat 'kubectl get pods && kubectl get svc'
             }
         }
     }
