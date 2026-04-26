@@ -2,12 +2,9 @@ FROM golang:1.25
 
 WORKDIR /app
 
-COPY go.mod ./
+COPY PaymentService/ .
+
 RUN go mod tidy
-
-COPY . .
-
-WORKDIR /app/PaymentService
-RUN go build -o app
+RUN go build -o app .
 
 CMD ["./app"]
