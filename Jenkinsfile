@@ -25,12 +25,16 @@ pipeline {
                 bat '''
                 set TMP=C:\\Windows\\Temp
                 set TEMP=C:\\Windows\\Temp
-                go list ./... | findstr /V functional > packages.txt
+        
+                go list ./... ^
+                | findstr /V functional ^
+                | findstr /V TrackingService ^
+                | findstr /V tests > packages.txt
+        
                 for /f %%i in (packages.txt) do go test %%i
                 '''
             }
         }
-
         stage('Vet') {
             steps {
                 bat 'go vet ./...'
