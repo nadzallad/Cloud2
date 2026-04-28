@@ -5,6 +5,7 @@ pipeline {
         PAYMENT_IMAGE = "payment-service"
         ORDER_IMAGE = "order-service"
         PICKUP_IMAGE = "pickup-service"
+        WAREHOUSE_IMAGE = "warehouse-service"
         SHIPMENT_IMAGE = "shipment-service"
         DELIVERY_IMAGE = "delivery-service"
         NOTIFICATION_IMAGE = "notification-service"
@@ -21,9 +22,6 @@ pipeline {
             }
         }
 
-        // ========================
-        // UNIT TEST (FIXED)
-        // ========================
         stage('Unit Test') {
             steps {
                 bat '''
@@ -63,6 +61,10 @@ pipeline {
                 docker build -t pickup-service:latest .
                 cd ..
 
+                cd WarehouseService
+                docker build -t warehouse-service:latest .
+                cd ..
+                
                 cd ShipmentService
                 docker build -t shipment-service:latest .
                 cd ..
@@ -100,6 +102,10 @@ pipeline {
                 start /b go run .
                 cd ..
 
+                cd WarehouseService
+                start /b go run .
+                cd ..
+                
                 cd ShipmentService
                 start /b go run .
                 cd ..
@@ -116,7 +122,7 @@ pipeline {
                 start /b go run .
                 cd ..
 
-                timeout /t 10
+                ping 127.0.0.1 -n 10 > nul
 
                 curl -X POST http://localhost:8081/payment ^
                 -H "Content-Type: application/json" ^
@@ -137,6 +143,10 @@ pipeline {
                 curl -X POST http://localhost:8084/track ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"shipped\\"}"
+
+                curl -X POST http://localhost:8085/warehouse ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"stock\\":10}"
                 '''
             }
         }
@@ -150,12 +160,15 @@ pipeline {
                 docker tag order-service:latest ghryalvrt/order-service:latest
                 docker push ghryalvrt/order-service:latest
 
-                docker tag payment-service:latest ghryalvrt/payment-service:latest
+                docker tag payment-service:latest nadzalla/payment-service:latest
                 docker push ghryalvrt/payment-service:latest
 
-                docker tag pickup-service:latest ghryalvrt/pickup-service:latest
+                docker tag pickup-service:latest naurafaizah/pickup-service:latest
                 docker push ghryalvrt/pickup-service:latest
 
+                docker tag warehouse-service:latest naurafaizah/warehouse-service:latest
+                docker push naurafaizah/warehouse-service:latest
+                
                 docker tag shipment-service:latest selikakanajmi/shipment-service:latest
                 docker push selikakanajmi/shipment-service:latest
                 
@@ -171,9 +184,6 @@ pipeline {
             }
         }
 
-        // ========================
-        // DEPLOY
-        // ========================
         stage('Deploy to Kubernetes') {
             steps {
                 bat 'kubectl apply -f k8s/'
