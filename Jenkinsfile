@@ -7,6 +7,8 @@ pipeline {
         PICKUP_IMAGE = "pickup-service"
         SHIPMENT_IMAGE = "shipment-service"
         DELIVERY_IMAGE = "delivery-service"
+        NOTIFICATION_IMAGE = "notification-service"
+        TRACKING_IMAGE = "tracking-service"
         TAG = "latest"
     }
 
@@ -20,7 +22,7 @@ pipeline {
         }
 
         // ========================
-        // UNIT TEST (FIX: skip functional)
+        // UNIT TEST (FIXED)
         // ========================
         stage('Unit Test') {
             steps {
@@ -30,13 +32,13 @@ pipeline {
         
                 go list ./... ^
                 | findstr /V functional ^
-                | findstr /V TrackingService ^
                 | findstr /V tests > packages.txt
         
                 for /f %%i in (packages.txt) do go test %%i
                 '''
             }
         }
+
         stage('Vet') {
             steps {
                 bat 'go vet ./...'
@@ -68,6 +70,14 @@ pipeline {
                 cd DeliveryService
                 docker build -t delivery-service:latest .
                 cd ..
+
+                cd NotificationService
+                docker build -t notification-service:latest .
+                cd ..
+
+                cd TrackingService
+                docker build -t tracking-service:latest .
+                cd ..
                 '''
             }
         }
@@ -98,7 +108,15 @@ pipeline {
                 start /b go run .
                 cd ..
 
-                timeout /t 8
+                cd NotificationService
+                start /b go run .
+                cd ..
+
+                cd TrackingService
+                start /b go run .
+                cd ..
+
+                timeout /t 10
 
                 curl -X POST http://localhost:8081/payment ^
                 -H "Content-Type: application/json" ^
@@ -111,6 +129,14 @@ pipeline {
                 curl -X POST http://localhost:8082/pickup ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"order_id\\":\\"ORD1\\",\\"payment_status\\":\\"paid\\",\\"weight\\":2}"
+
+                curl -X POST http://localhost:8083/notify ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"message\\":\\"order created\\"}"
+
+                curl -X POST http://localhost:8084/track ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"shipped\\"}"
                 '''
             }
         }
@@ -125,16 +151,22 @@ pipeline {
                 docker push ghryalvrt/order-service:latest
 
                 docker tag payment-service:latest ghryalvrt/payment-service:latest
-                docker push nadzalla/payment-service:latest
+                docker push ghryalvrt/payment-service:latest
 
                 docker tag pickup-service:latest ghryalvrt/pickup-service:latest
-                docker push naurafaizah/pickup-service:latest
+                docker push ghryalvrt/pickup-service:latest
 
                 docker tag shipment-service:latest selikakanajmi/shipment-service:latest
                 docker push selikakanajmi/shipment-service:latest
                 
                 docker tag delivery-service:latest selikakanajmi/delivery-service:latest
                 docker push selikakanajmi/delivery-service:latest
+
+                docker tag notification-service:latest yourdockerhub/notification-service:latest
+                docker push yourdockerhub/notification-service:latest
+
+                docker tag tracking-service:latest yourdockerhub/tracking-service:latest
+                docker push yourdockerhub/tracking-service:latest
                 '''
             }
         }
