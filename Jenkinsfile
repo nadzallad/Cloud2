@@ -23,6 +23,8 @@ pipeline {
         stage('Unit Test') {
             steps {
                 bat '''
+                set TMP=C:\\Windows\\Temp
+                set TEMP=C:\\Windows\\Temp
                 go list ./... | findstr /V functional > packages.txt
                 for /f %%i in (packages.txt) do go test %%i
                 '''
