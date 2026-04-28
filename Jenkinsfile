@@ -5,6 +5,8 @@ pipeline {
         PAYMENT_IMAGE = "payment-service"
         ORDER_IMAGE = "order-service"
         PICKUP_IMAGE = "pickup-service"
+        SHIPMENT_IMAGE = "shipment-service"
+        DELIVERY_IMAGE = "delivery-service"
         TAG = "latest"
     }
 
@@ -58,6 +60,14 @@ pipeline {
                 cd PickupService
                 docker build -t pickup-service:latest .
                 cd ..
+
+                cd ShipmentService
+                docker build -t shipment-service:latest .
+                cd ..
+
+                cd DeliveryService
+                docker build -t delivery-service:latest .
+                cd ..
                 '''
             }
         }
@@ -80,7 +90,15 @@ pipeline {
                 start /b go run .
                 cd ..
 
-                timeout /t 6
+                cd ShipmentService
+                start /b go run .
+                cd ..
+
+                cd DeliveryService
+                start /b go run .
+                cd ..
+
+                timeout /t 8
 
                 curl -X POST http://localhost:8081/payment ^
                 -H "Content-Type: application/json" ^
@@ -111,6 +129,12 @@ pipeline {
 
                 docker tag pickup-service:latest ghryalvrt/pickup-service:latest
                 docker push naurafaizah/pickup-service:latest
+
+                docker tag shipment-service:latest selikakanajmi/shipment-service:latest
+                docker push selikakanajmi/shipment-service:latest
+                
+                docker tag delivery-service:latest selikakanajmi/delivery-service:latest
+                docker push selikakanajmi/delivery-service:latest
                 '''
             }
         }
