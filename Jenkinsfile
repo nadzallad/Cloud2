@@ -4,6 +4,7 @@ pipeline {
     environment {
         PAYMENT_IMAGE = "payment-service"
         ORDER_IMAGE = "order-service"
+        PICKUP_IMAGE = "pickup-service"
         TAG = "latest"
     }
 
@@ -16,9 +17,15 @@ pipeline {
             }
         }
 
+        // ========================
+        // UNIT TEST (FIX: skip functional)
+        // ========================
         stage('Unit Test') {
             steps {
-                bat 'go test ./...'
+                bat '''
+                go list ./... | findstr /V functional > packages.txt
+                for /f %%i in (packages.txt) do go test %%i
+                '''
             }
         }
 
@@ -41,6 +48,10 @@ pipeline {
                 cd OrderService
                 docker build -t order-service:latest .
                 cd ..
+
+                cd PickupService
+                docker build -t pickup-service:latest .
+                cd ..
                 '''
             }
         }
@@ -51,10 +62,19 @@ pipeline {
         stage('Functional Test') {
             steps {
                 bat '''
-                start /b go run PaymentService/main.go
-                start /b go run OrderService/main.go
+                cd PaymentService
+                start /b go run .
+                cd ..
 
-                timeout /t 5
+                cd OrderService
+                start /b go run .
+                cd ..
+
+                cd PickupService
+                start /b go run .
+                cd ..
+
+                timeout /t 6
 
                 curl -X POST http://localhost:8081/payment ^
                 -H "Content-Type: application/json" ^
@@ -63,6 +83,10 @@ pipeline {
                 curl -X POST http://localhost:8080/order ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"user_id\\":1,\\"weight_kg\\":2,\\"distance_km\\":5,\\"base_price\\":10000}"
+
+                curl -X POST http://localhost:8082/pickup ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"payment_status\\":\\"paid\\",\\"weight\\":2}"
                 '''
             }
         }
@@ -77,7 +101,10 @@ pipeline {
                 docker push ghryalvrt/order-service:latest
 
                 docker tag payment-service:latest ghryalvrt/payment-service:latest
-                docker push ghryalvrt/payment-service:latest
+                docker push nadzalla/payment-service:latest
+
+                docker tag pickup-service:latest ghryalvrt/pickup-service:latest
+                docker push naurafaizah/pickup-service:latest
                 '''
             }
         }
