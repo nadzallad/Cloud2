@@ -3,7 +3,7 @@ FROM golang:1.25
 WORKDIR /app
 
 # copy folder service ke dalam container
-COPY PaymentService/ PaymentService/
+COPY . .
 
 WORKDIR /app/PaymentService
 
