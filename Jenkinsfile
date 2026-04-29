@@ -128,7 +128,7 @@ pipeline {
                 -H "Content-Type: application/json" ^
                 -d "{\\"amount\\":10000,\\"paid\\":10000}"
 
-                curl -X POST http://localhost:8080/order ^
+                curl -X POST http://localhost:8081/order ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"user_id\\":1,\\"weight_kg\\":2,\\"distance_km\\":5,\\"base_price\\":10000}"
 
