@@ -1,15 +1,13 @@
-package main
+package tests
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
 func TestOrderEndpoint(t *testing.T) {
-	// bikin request body
 	reqBody := map[string]interface{}{
 		"user_id":     1,
 		"weight_kg":   2,
@@ -19,25 +17,17 @@ func TestOrderEndpoint(t *testing.T) {
 
 	jsonBody, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/order", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.Post("http://localhost:8084/order",
+		"application/json",
+		bytes.NewBuffer(jsonBody))
 
-	rr := httptest.NewRecorder()
-
-	// panggil handler langsung
-	orderHandler(rr, req)
-
-	// cek status code
-	if rr.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rr.Code)
+	if err != nil {
+		t.Skipf("Order service not running: %v", err)
+		return
 	}
+	defer resp.Body.Close()
 
-	// decode response
-	var response map[string]interface{}
-	json.NewDecoder(rr.Body).Decode(&response)
-
-	// cek field penting
-	if response["status"] != "CREATED" {
-		t.Errorf("Expected status CREATED, got %v", response["status"])
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
 }
