@@ -10,5 +10,5 @@ func main() {
 		fmt.Fprintln(w, "Shipment Service Running")
 	})
 
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8085", nil)
 }

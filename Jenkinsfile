@@ -124,7 +124,7 @@ pipeline {
 
                 ping 127.0.0.1 -n 10 > nul
 
-                curl -X POST http://localhost:8081/payment ^
+                curl -X POST http://localhost:8082/payment ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"amount\\":10000,\\"paid\\":10000}"
 
@@ -132,19 +132,19 @@ pipeline {
                 -H "Content-Type: application/json" ^
                 -d "{\\"user_id\\":1,\\"weight_kg\\":2,\\"distance_km\\":5,\\"base_price\\":10000}"
 
-                curl -X POST http://localhost:8082/pickup ^
+                curl -X POST http://localhost:8083/pickup ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"order_id\\":\\"ORD1\\",\\"payment_status\\":\\"paid\\",\\"weight\\":2}"
 
-                curl -X POST http://localhost:8083/notify ^
+                curl -X POST http://localhost:8088/notify ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"message\\":\\"order created\\"}"
 
-                curl -X POST http://localhost:8084/track ^
+                curl -X POST http://localhost:8087/track ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"shipped\\"}"
 
-                curl -X POST http://localhost:8085/warehouse ^
+                curl -X POST http://localhost:8084/warehouse ^
                 -H "Content-Type: application/json" ^
                 -d "{\\"stock\\":10}"
                 '''

@@ -27,5 +27,5 @@ func notificationHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/notification", notificationHandler)
-	http.ListenAndServe(":8081", nil)
+	http.ListenAndServe(":8088", nil)
 }
