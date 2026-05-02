@@ -160,26 +160,26 @@ pipeline {
                 docker tag order-service:latest ghryalvrt/order-service:latest
                 docker push ghryalvrt/order-service:latest
 
-                docker tag payment-service:latest nadzalla/payment-service:latest
+                docker tag payment-service:latest ghryalvrt/payment-service:latest
                 docker push ghryalvrt/payment-service:latest
 
-                docker tag pickup-service:latest naurafaizah/pickup-service:latest
+                docker tag pickup-service:latest ghryalvrt/pickup-service:latest
                 docker push ghryalvrt/pickup-service:latest
 
-                docker tag warehouse-service:latest naurafaizah/warehouse-service:latest
-                docker push naurafaizah/warehouse-service:latest
+                docker tag warehouse-service:latest ghryalvrt/warehouse-service:latest
+                docker push ghryalvrt/warehouse-service:latest
                 
-                docker tag shipment-service:latest selikakanajmi/shipment-service:latest
-                docker push selikakanajmi/shipment-service:latest
+                docker tag shipment-service:latest ghryalvrt/shipment-service:latest
+                docker push ghryalvrt/shipment-service:latest
                 
-                docker tag delivery-service:latest selikakanajmi/delivery-service:latest
-                docker push selikakanajmi/delivery-service:latest
+                docker tag delivery-service:latest ghryalvrt/delivery-service:latest
+                docker push ghryalvrt/delivery-service:latest
 
-                docker tag notification-service:latest yourdockerhub/notification-service:latest
-                docker push yourdockerhub/notification-service:latest
+                docker tag notification-service:latest ghryalvrt/notification-service:latest
+                docker push ghryalvrt/notification-service:latest
 
-                docker tag tracking-service:latest yourdockerhub/tracking-service:latest
-                docker push yourdockerhub/tracking-service:latest
+                docker tag tracking-service:latest ghryalvrt/tracking-service:latest
+                docker push ghryalvrt/tracking-service:latest
                 '''
             }
         }
