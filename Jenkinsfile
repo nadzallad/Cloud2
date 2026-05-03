@@ -23,7 +23,7 @@ pipeline {
         // ========================
         stage('Unit Test') {
             steps {
-                sh 'go test ./... || true'
+                bat 'go test ./... || exit 0'
             }
         }
 
@@ -32,7 +32,7 @@ pipeline {
         // ========================
         stage('Vet') {
             steps {
-                sh 'go vet ./...'
+                bat 'go vet ./...'
             }
         }
 
@@ -41,15 +41,15 @@ pipeline {
         // ========================
         stage('Build Docker Images') {
             steps {
-                sh '''
-                docker build -t $DOCKER_USER/payment-service:$TAG ./PaymentService
-                docker build -t $DOCKER_USER/order-service:$TAG ./OrderService
-                docker build -t $DOCKER_USER/pickup-service:$TAG ./PickupService
-                docker build -t $DOCKER_USER/warehouse-service:$TAG ./WarehouseService
-                docker build -t $DOCKER_USER/shipment-service:$TAG ./ShipmentService
-                docker build -t $DOCKER_USER/delivery-service:$TAG ./DeliveryService
-                docker build -t $DOCKER_USER/notification-service:$TAG ./NotificationService
-                docker build -t $DOCKER_USER/tracking-service:$TAG ./TrackingService
+                bat '''
+                docker build -t %DOCKER_USER%/payment-service:%TAG% PaymentService
+                docker build -t %DOCKER_USER%/order-service:%TAG% OrderService
+                docker build -t %DOCKER_USER%/pickup-service:%TAG% PickupService
+                docker build -t %DOCKER_USER%/warehouse-service:%TAG% WarehouseService
+                docker build -t %DOCKER_USER%/shipment-service:%TAG% ShipmentService
+                docker build -t %DOCKER_USER%/delivery-service:%TAG% DeliveryService
+                docker build -t %DOCKER_USER%/notification-service:%TAG% NotificationService
+                docker build -t %DOCKER_USER%/tracking-service:%TAG% TrackingService
                 '''
             }
         }
@@ -59,57 +59,72 @@ pipeline {
         // ========================
         stage('Functional Test') {
             steps {
-                sh '''
-                go run PaymentService/main.go &
-                go run OrderService/main.go &
-                go run PickupService/main.go &
-                go run WarehouseService/main.go &
-                go run ShipmentService/main.go &
-                go run DeliveryService/main.go &
-                go run NotificationService/main.go &
-                go run TrackingService/main.go &
+                bat '''
+                cd PaymentService
+                start /b go run .
+                cd ..
 
-                sleep 8
+                cd OrderService
+                start /b go run .
+                cd ..
 
-                # PAYMENT (8082)
-                curl -X POST http://localhost:8082/payment \
-                -H "Content-Type: application/json" \
-                -d '{"amount":10000,"paid":10000}' || true
+                cd PickupService
+                start /b go run .
+                cd ..
 
-                # ORDER (8081)
-                curl -X POST http://localhost:8081/order \
-                -H "Content-Type: application/json" \
-                -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}' || true
+                cd WarehouseService
+                start /b go run .
+                cd ..
 
-                # PICKUP (8083)
-                curl -X POST http://localhost:8083/pickup \
-                -H "Content-Type: application/json" \
-                -d '{"order_id":"ORD1","payment_status":"paid","weight":2}' || true
+                cd ShipmentService
+                start /b go run .
+                cd ..
 
-                # WAREHOUSE (8084)
-                curl -X POST http://localhost:8084/warehouse \
-                -H "Content-Type: application/json" \
-                -d '{"stock":10}' || true
+                cd DeliveryService
+                start /b go run .
+                cd ..
 
-                # SHIPMENT (8085)
-                curl -X POST http://localhost:8085/shipment \
-                -H "Content-Type: application/json" \
-                -d '{"order_id":"ORD1","status":"shipped"}' || true
+                cd NotificationService
+                start /b go run .
+                cd ..
 
-                # DELIVERY (8086)
-                curl -X POST http://localhost:8086/delivery \
-                -H "Content-Type: application/json" \
-                -d '{"order_id":"ORD1","status":"delivered"}' || true
+                cd TrackingService
+                start /b go run .
+                cd ..
 
-                # TRACKING (8087)
-                curl -X POST http://localhost:8087/track \
-                -H "Content-Type: application/json" \
-                -d '{"order_id":"ORD1","status":"on the way"}' || true
+                timeout /t 8
 
-                # NOTIFICATION (8088)
-                curl -X POST http://localhost:8088/notify \
-                -H "Content-Type: application/json" \
-                -d '{"message":"order created"}' || true
+                curl -X POST http://localhost:8082/payment ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"amount\\":10000,\\"paid\\":10000}" || exit 0
+
+                curl -X POST http://localhost:8081/order ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"user_id\\":1,\\"weight_kg\\":2,\\"distance_km\\":5,\\"base_price\\":10000}" || exit 0
+
+                curl -X POST http://localhost:8083/pickup ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"payment_status\\":\\"paid\\",\\"weight\\":2}" || exit 0
+
+                curl -X POST http://localhost:8084/warehouse ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"stock\\":10}" || exit 0
+
+                curl -X POST http://localhost:8085/shipment ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"shipped\\"}" || exit 0
+
+                curl -X POST http://localhost:8086/delivery ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"delivered\\"}" || exit 0
+
+                curl -X POST http://localhost:8087/track ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"on the way\\"}" || exit 0
+
+                curl -X POST http://localhost:8088/notify ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"message\\":\\"order created\\"}" || exit 0
                 '''
             }
         }
@@ -124,17 +139,17 @@ pipeline {
                     usernameVariable: 'DOCKER_USER_LOGIN',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER_LOGIN" --password-stdin
+                    bat '''
+                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER_LOGIN% --password-stdin
 
-                    docker push $DOCKER_USER/payment-service:$TAG
-                    docker push $DOCKER_USER/order-service:$TAG
-                    docker push $DOCKER_USER/pickup-service:$TAG
-                    docker push $DOCKER_USER/warehouse-service:$TAG
-                    docker push $DOCKER_USER/shipment-service:$TAG
-                    docker push $DOCKER_USER/delivery-service:$TAG
-                    docker push $DOCKER_USER/notification-service:$TAG
-                    docker push $DOCKER_USER/tracking-service:$TAG
+                    docker push %DOCKER_USER%/payment-service:%TAG%
+                    docker push %DOCKER_USER%/order-service:%TAG%
+                    docker push %DOCKER_USER%/pickup-service:%TAG%
+                    docker push %DOCKER_USER%/warehouse-service:%TAG%
+                    docker push %DOCKER_USER%/shipment-service:%TAG%
+                    docker push %DOCKER_USER%/delivery-service:%TAG%
+                    docker push %DOCKER_USER%/notification-service:%TAG%
+                    docker push %DOCKER_USER%/tracking-service:%TAG%
                     '''
                 }
             }
@@ -145,7 +160,7 @@ pipeline {
         // ========================
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f k8s/'
+                bat 'kubectl apply -f k8s/'
             }
         }
 
@@ -154,7 +169,7 @@ pipeline {
         // ========================
         stage('Verify Deployment') {
             steps {
-                sh '''
+                bat '''
                 kubectl get pods
                 kubectl get svc
                 '''
