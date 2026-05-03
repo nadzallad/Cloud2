@@ -2,8 +2,14 @@ pipeline {
     agent any
 
     environment {
-        PAYMENT_IMAGE = "ghryalvrt/payment-service"
-        ORDER_IMAGE = "ghryalvrt/order-service"
+        PAYMENT_IMAGE = "payment-service"
+        ORDER_IMAGE = "order-service"
+        PICKUP_IMAGE = "pickup-service"
+        WAREHOUSE_IMAGE = "warehouse-service"
+        SHIPMENT_IMAGE = "shipment-service"
+        DELIVERY_IMAGE = "delivery-service"
+        NOTIFICATION_IMAGE = "notification-service"
+        TRACKING_IMAGE = "tracking-service"
         TAG = "latest"
     }
 
@@ -18,13 +24,22 @@ pipeline {
 
         stage('Unit Test') {
             steps {
-                sh 'go test ./... || true'
+                bat '''
+                set TMP=C:\\Windows\\Temp
+                set TEMP=C:\\Windows\\Temp
+        
+                go list ./... ^
+                | findstr /V functional ^
+                | findstr /V tests > packages.txt
+        
+                for /f %%i in (packages.txt) do go test %%i
+                '''
             }
         }
 
         stage('Vet') {
             steps {
-                sh 'go vet ./...'
+                bat 'go vet ./...'
             }
         }
 
@@ -33,13 +48,37 @@ pipeline {
         // ========================
         stage('Build Docker Images') {
             steps {
-                sh '''
+                bat '''
                 cd PaymentService
-                docker build -t $PAYMENT_IMAGE:$TAG .
+                docker build -t payment-service:latest .
                 cd ..
 
                 cd OrderService
-                docker build -t $ORDER_IMAGE:$TAG .
+                docker build -t order-service:latest .
+                cd ..
+
+                cd PickupService
+                docker build -t pickup-service:latest .
+                cd ..
+
+                cd WarehouseService
+                docker build -t warehouse-service:latest .
+                cd ..
+                
+                cd ShipmentService
+                docker build -t shipment-service:latest .
+                cd ..
+
+                cd DeliveryService
+                docker build -t delivery-service:latest .
+                cd ..
+
+                cd NotificationService
+                docker build -t notification-service:latest .
+                cd ..
+
+                cd TrackingService
+                docker build -t tracking-service:latest .
                 cd ..
                 '''
             }
@@ -50,19 +89,64 @@ pipeline {
         // ========================
         stage('Functional Test') {
             steps {
-                sh '''
-                go run PaymentService/main.go &
-                go run OrderService/main.go &
+                bat '''
+                cd PaymentService
+                start /b go run .
+                cd ..
 
-                sleep 5
+                cd OrderService
+                start /b go run .
+                cd ..
 
-                curl -X POST http://localhost:8081/payment \
-                -H "Content-Type: application/json" \
-                -d '{"amount":10000,"paid":10000}' || true
+                cd PickupService
+                start /b go run .
+                cd ..
 
-                curl -X POST http://localhost:8080/order \
-                -H "Content-Type: application/json" \
-                -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}' || true
+                cd WarehouseService
+                start /b go run .
+                cd ..
+                
+                cd ShipmentService
+                start /b go run .
+                cd ..
+
+                cd DeliveryService
+                start /b go run .
+                cd ..
+
+                cd NotificationService
+                start /b go run .
+                cd ..
+
+                cd TrackingService
+                start /b go run .
+                cd ..
+
+                ping 127.0.0.1 -n 10 > nul
+
+                curl -X POST http://localhost:8082/payment ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"amount\\":10000,\\"paid\\":10000}"
+
+                curl -X POST http://localhost:8081/order ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"user_id\\":1,\\"weight_kg\\":2,\\"distance_km\\":5,\\"base_price\\":10000}"
+
+                curl -X POST http://localhost:8083/pickup ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"payment_status\\":\\"paid\\",\\"weight\\":2}"
+
+                curl -X POST http://localhost:8088/notify ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"message\\":\\"order created\\"}"
+
+                curl -X POST http://localhost:8087/track ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"order_id\\":\\"ORD1\\",\\"status\\":\\"shipped\\"}"
+
+                curl -X POST http://localhost:8084/warehouse ^
+                -H "Content-Type: application/json" ^
+                -d "{\\"stock\\":10}"
                 '''
             }
         }
@@ -72,30 +156,43 @@ pipeline {
         // ========================
         stage('Push Images') {
             steps {
-                sh '''
-                docker push $ORDER_IMAGE:$TAG
-                docker push $PAYMENT_IMAGE:$TAG
+                bat '''
+                docker tag order-service:latest ghryalvrt/order-service:latest
+                docker push ghryalvrt/order-service:latest
+
+                docker tag payment-service:latest ghryalvrt/payment-service:latest
+                docker push ghryalvrt/payment-service:latest
+
+                docker tag pickup-service:latest ghryalvrt/pickup-service:latest
+                docker push ghryalvrt/pickup-service:latest
+
+                docker tag warehouse-service:latest ghryalvrt/warehouse-service:latest
+                docker push ghryalvrt/warehouse-service:latest
+                
+                docker tag shipment-service:latest ghryalvrt/shipment-service:latest
+                docker push ghryalvrt/shipment-service:latest
+                
+                docker tag delivery-service:latest ghryalvrt/delivery-service:latest
+                docker push ghryalvrt/delivery-service:latest
+
+                docker tag notification-service:latest ghryalvrt/notification-service:latest
+                docker push ghryalvrt/notification-service:latest
+
+                docker tag tracking-service:latest ghryalvrt/tracking-service:latest
+                docker push ghryalvrt/tracking-service:latest
                 '''
             }
         }
 
-        // ========================
-        // DEPLOY
-        // ========================
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                kubectl apply -f k8s/
-                '''
+                bat 'kubectl apply -f k8s/'
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                sh '''
-                kubectl get pods
-                kubectl get svc
-                '''
+                bat 'kubectl get pods && kubectl get svc'
             }
         }
     }
