@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: order-service
-        image: ghryalvrt/order-service:latest
+        image: nadzalla/order-service:latest
         ports:
         - containerPort: 8080
