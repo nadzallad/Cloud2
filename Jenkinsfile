@@ -5,7 +5,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/nadzallad/Cloud2.git'
+                deleteDir()
+                git branch: 'main', url: 'https://github.com/nadzallad/Cloud2.git'
             }
         }
 
