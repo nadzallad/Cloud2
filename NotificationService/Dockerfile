@@ -2,12 +2,11 @@ FROM golang:1.25
 
 WORKDIR /app
 
-# copy folder service ke dalam container
 COPY . .
-
-WORKDIR /app/PaymentService
 
 RUN go mod tidy
 RUN go build -o app .
+
+EXPOSE 8081
 
 CMD ["./app"]
