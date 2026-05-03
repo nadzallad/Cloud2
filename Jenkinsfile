@@ -2,13 +2,16 @@ pipeline {
     agent any
 
     environment {
-        PAYMENT_IMAGE = "ghryalvrt/payment-service"
-        ORDER_IMAGE = "ghryalvrt/order-service"
-        TAG = "latest"
+        PAYMENT_IMAGE = "nadzalla/payment-service"
+        ORDER_IMAGE   = "nadzalla/order-service"
+        TAG           = "latest"
     }
 
     stages {
 
+        // ========================
+        // CHECKOUT
+        // ========================
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -16,12 +19,18 @@ pipeline {
             }
         }
 
+        // ========================
+        // UNIT TEST
+        // ========================
         stage('Unit Test') {
             steps {
                 sh 'go test ./... || true'
             }
         }
 
+        // ========================
+        // VET
+        // ========================
         stage('Vet') {
             steps {
                 sh 'go vet ./...'
@@ -68,14 +77,22 @@ pipeline {
         }
 
         // ========================
-        // PUSH IMAGE
+        // PUSH IMAGE (FIXED)
         // ========================
         stage('Push Images') {
             steps {
-                sh '''
-                docker push $ORDER_IMAGE:$TAG
-                docker push $PAYMENT_IMAGE:$TAG
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                    docker push $ORDER_IMAGE:$TAG
+                    docker push $PAYMENT_IMAGE:$TAG
+                    '''
+                }
             }
         }
 
@@ -90,6 +107,9 @@ pipeline {
             }
         }
 
+        // ========================
+        // VERIFY
+        // ========================
         stage('Verify Deployment') {
             steps {
                 sh '''
