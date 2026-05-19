@@ -54,22 +54,28 @@ pipeline {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh '''
-                    echo "Cleanup container lama..."
-                    docker rm -f test-payment || true
+                    echo "Run DB container..."
+                    docker rm -f postgres-test || true
+                    docker run -d \
+                    --name postgres-test \
+                    -e POSTGRES_PASSWORD=123 \
+                    -e POSTGRES_DB=testdb \
+                    -p 5432:5432 \
+                    postgres
 
-                    echo "Run container..."
+                    echo "Run app container..."
+                    docker rm -f test-payment || true
                     docker run -d -p 8082:8082 --name test-payment $IMAGE
 
-                    echo "Tunggu service hidup..."
-                    sleep 5
+                    echo "Waiting DB..."
+                    sleep 10
 
-                    echo "Running Functional Test..."
+                    echo "Run Functional Test..."
                     cd PaymentService
                     go test -run TestPaymentAPI_Success
 
-                    echo "Stop & remove container..."
-                    docker stop test-payment
-                    docker rm test-payment
+                    docker rm -f test-payment
+                    docker rm -f postgres-test
                     '''
                 }
             }
