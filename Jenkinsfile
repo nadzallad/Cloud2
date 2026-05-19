@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "nadzallad/payment-service:${env.BUILD_NUMBER}"
+        IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
