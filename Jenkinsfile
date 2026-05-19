@@ -13,8 +13,14 @@ pipeline {
         IMAGE = "${DOCKER_HUB_USER}/payment-service:${env.BUILD_NUMBER}"
     }
 
+    triggers {
+        // AUTO BUILD tiap ada perubahan (backup kalau webhook ga jalan)
+        pollSCM('* * * * *')
+    }
+
     stages {
 
+        // 1. CHECKOUT
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -22,6 +28,7 @@ pipeline {
             }
         }
 
+        // 2. UNIT TEST
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
@@ -37,6 +44,7 @@ pipeline {
             }
         }
 
+        // 3. LINT
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -48,6 +56,7 @@ pipeline {
             }
         }
 
+        // 4. BUILD IMAGE
         stage('Build Image') {
             steps {
                 sh '''
@@ -57,6 +66,7 @@ pipeline {
             }
         }
 
+        // 5. FUNCTIONAL TEST
         stage('Functional Test') {
             steps {
                 sh '''
@@ -79,6 +89,7 @@ pipeline {
             }
         }
 
+        // 6. PUSH IMAGE
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -94,19 +105,35 @@ pipeline {
             }
         }
 
+        // 7. DEPLOY
         stage('Deploy') {
             steps {
                 sh '''
-                echo "Deploy..."
+                echo "Install kubectl..."
+                curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
+                chmod +x kubectl
+                mv kubectl /usr/local/bin/
+
+                echo "Deploy to Kubernetes..."
                 kubectl apply -f k8s/ --validate=false
                 '''
             }
         }
 
+        // 8. VERIFY
         stage('Verify') {
             steps {
                 sh 'echo "PIPELINE SUCCESS"'
             }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ SUCCESS: Pipeline completed!'
+        }
+        failure {
+            echo '❌ FAILED: Check logs!'
         }
     }
 }
