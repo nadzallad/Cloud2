@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: warehouse_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: warehouse_db
+    ports:
+      - "5432:5432"
+
+  mongodb:
+    image: mongo:7
+    container_name: pickup_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    ports:
+      - "27017:27017"
