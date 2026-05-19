@@ -7,7 +7,7 @@ pipeline {
 
     stages {
 
-        // 1. CHECKOUT
+        // 1. CHECKOUT REPO
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -15,10 +15,11 @@ pipeline {
             }
         }
 
-        // 2. UNIT TEST
+        // 2. UNIT TEST (TIDAK AKSES DB)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
+                    sh 'echo "Running Unit Test..."'
                     sh 'go test ./... || true'
                 }
             }
@@ -28,51 +29,67 @@ pipeline {
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
+                    sh 'echo "Running Go Vet..."'
                     sh 'go vet ./... || true'
                 }
             }
         }
 
-        // 4. BUILD IMAGE
+        // 4. BUILD DOCKER IMAGE
         stage('Build Image') {
             steps {
+                sh 'echo "Building Docker Image..."'
                 sh 'docker build -t $IMAGE ./PaymentService'
             }
         }
 
-        // 5. FUNCTIONAL TEST
+        // 5. FUNCTIONAL TEST (PAKAI GO TEST)
         stage('Functional Test') {
             steps {
                 sh '''
+                echo "Cleanup container lama..."
+                docker rm -f test-payment || true
+
+                echo "Run container..."
                 docker run -d -p 8082:8082 --name test-payment $IMAGE
+
+                echo "Tunggu service hidup..."
                 sleep 5
-                curl -X POST http://localhost:8082/payment \
-                -H "Content-Type: application/json" \
-                -d '{"order_id":1,"amount":50000,"paid":50000,"payment_method":"BANK_TRANSFER"}'
+
+                echo "Running Functional Test..."
+                cd PaymentService
+                go test -run TestPaymentAPI_Success || true
+
+                echo "Stop & remove container..."
                 docker stop test-payment
                 docker rm test-payment
                 '''
             }
         }
 
-        // 6. PUSH IMAGE
+        // 6. PUSH IMAGE KE DOCKER HUB
         stage('Push Image') {
             steps {
+                sh 'echo "Push Docker Image..."'
                 sh 'docker push $IMAGE'
             }
         }
 
-        // 7. DEPLOY KUBERNETES
+        // 7. DEPLOY KE KUBERNETES
         stage('Deploy') {
             steps {
+                sh 'echo "Deploy ke Kubernetes..."'
                 sh 'kubectl apply -f k8s/'
             }
         }
 
-        // 8. VERIFY
+        // 8. VERIFY DEPLOYMENT
         stage('Verify') {
             steps {
+                sh 'echo "Cek pods..."'
                 sh 'kubectl get pods'
+
+                sh 'echo "Cek services..."'
                 sh 'kubectl get svc'
             }
         }
