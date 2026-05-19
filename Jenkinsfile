@@ -2,11 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_USER = 'nadzalla'
-        DOCKER_HUB_ID   = 'logistic-login'
-        GIT_REPO_URL    = 'https://github.com/nadzallad/Cloud2.git'
-
-        IMAGE = "${DOCKER_HUB_USER}/payment-service:${env.BUILD_NUMBER}"
+        IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -15,11 +11,11 @@ pipeline {
         stage('Checkout Repo') {
             steps {
                 deleteDir()
-                git branch: 'main', url: "${GIT_REPO_URL}"
+                git branch: 'main', url: 'https://github.com/nadzallad/Cloud2.git'
             }
         }
 
-        // 2. UNIT TEST
+        // 2. UNIT TEST (TIDAK AKSES DB)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
@@ -33,13 +29,15 @@ pipeline {
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
-                    sh 'echo "Running Go Vet..."'
-                    sh 'go vet ./... || true'
+                    sh '''
+                    echo "Running Go Vet..."
+                    go vet ./...
+                    '''
                 }
             }
         }
 
-        // 4. BUILD IMAGE
+        // 4. BUILD DOCKER IMAGE
         stage('Build Image') {
             steps {
                 sh 'echo "Building Docker Image..."'
@@ -47,48 +45,61 @@ pipeline {
             }
         }
 
-        // 5. FUNCTIONAL TEST
+        // 5. FUNCTIONAL TEST (PAKAI GO TEST)
         stage('Functional Test') {
             steps {
                 sh '''
+                echo "Cleanup container lama..."
                 docker rm -f test-payment || true
+
+                echo "Run container..."
                 docker run -d -p 8082:8082 --name test-payment $IMAGE
+
+                echo "Tunggu service hidup..."
                 sleep 5
+
+                echo "Running Functional Test..."
                 cd PaymentService
                 go test -run TestPaymentAPI_Success || true
+
+                echo "Stop & remove container..."
                 docker stop test-payment
                 docker rm test-payment
                 '''
             }
         }
 
-        // 6. PUSH IMAGE
+        // 6. PUSH IMAGE KE DOCKER HUB
         stage('Push Image') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: "${DOCKER_HUB_ID}",
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    sh '''
-                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-                    docker push $IMAGE
-                    '''
-                }
+                sh 'echo "Push Docker Image..."'
+                sh 'docker push $IMAGE'
             }
         }
 
-        // 7. DEPLOY (SIMULASI BIAR IJO)
+        // 7. DEPLOY KE KUBERNETES
         stage('Deploy') {
             steps {
-                sh 'echo "Simulasi deploy ke Kubernetes (real deploy di minikube lokal)"'
+                sh 'kubectl config use-context minikube'
+
+                sh '''
+                sed -i "s|image: .*|image: $IMAGE|g" k8s/deployment-payment.yaml
+                '''
+
+                sh 'kubectl apply -f k8s/deployment-payment.yaml --validate=false'
+                sh 'kubectl apply -f k8s/payment-service.yaml --validate=false'
+                sh 'kubectl apply -f k8s/ingress.yaml --validate=false'
             }
         }
 
-        // 8. VERIFY
+        // 8. VERIFY DEPLOYMENT
         stage('Verify') {
             steps {
-                sh 'echo "Build & Push berhasil"'
+                sh 'echo "Cek pods..."'
+                sh 'kubectl get pods'
+
+                sh 'echo "Cek services..."'
+                sh 'kubectl get svc'
             }
         }
     }
