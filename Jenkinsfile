@@ -1,10 +1,4 @@
 pipeline {
-    agent {
-        docker {
-            image 'golang:1.20'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
 
     environment {
         DOCKER_HUB_USER = 'nadzalla'
