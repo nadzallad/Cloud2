@@ -78,10 +78,15 @@ pipeline {
         // 7. DEPLOY KE KUBERNETES
         stage('Deploy') {
             steps {
-                sh 'echo "Deploy ke Kubernetes..."'
-                 sh 'kubectl apply -f k8s/ --validate=false'
-                 sh 'kubectl apply -f k8s/payment-service.yaml --validate=false'
-                 sh 'kubectl apply -f k8s/ingress.yaml --validate=false'
+                sh 'kubectl config use-context minikube'
+
+                sh '''
+                sed -i "s|image: .*|image: $IMAGE|g" k8s/deployment-payment.yaml
+                '''
+
+                sh 'kubectl apply -f k8s/deployment-payment.yaml --validate=false'
+                sh 'kubectl apply -f k8s/payment-service.yaml --validate=false'
+                sh 'kubectl apply -f k8s/ingress.yaml --validate=false'
             }
         }
 
