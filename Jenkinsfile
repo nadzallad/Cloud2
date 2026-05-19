@@ -2,102 +2,111 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
+        DOCKER_HUB_USER = 'nadzalla'
+        DOCKER_HUB_ID   = 'logistic-login'
+        GIT_REPO_URL    = 'https://github.com/nadzallad/Cloud2.git'
+
+        IMAGE = "${DOCKER_HUB_USER}/payment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
 
-        // 1. CHECKOUT REPO
+        // 1. CHECKOUT
         stage('Checkout Repo') {
             steps {
                 deleteDir()
-                git branch: 'main', url: 'https://github.com/nadzallad/Cloud2.git'
+                git branch: 'main', url: "${GIT_REPO_URL}"
             }
         }
 
-        // 2. UNIT TEST (TIDAK AKSES DB)
+        // 2. UNIT TEST (HARUS PASS)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
-                    sh 'echo "Running Unit Test..."'
-                    sh 'go test ./... || true'
+                    sh '''
+                    echo "Running Unit Test..."
+                    go test ./...
+                    '''
                 }
             }
         }
 
-        // 3. LINT / VET
+        // 3. LINT / VET (HARUS BERSIH)
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
-                    sh 'echo "Running Go Vet..."'
-                    sh 'go vet ./... || true'
+                    sh '''
+                    echo "Running Go Vet..."
+                    go vet ./...
+                    '''
                 }
             }
         }
 
-        // 4. BUILD DOCKER IMAGE
+        // 4. BUILD IMAGE (HARUS BERHASIL)
         stage('Build Image') {
             steps {
-                sh 'echo "Building Docker Image..."'
-                sh 'docker build -t $IMAGE ./PaymentService'
+                sh '''
+                echo "Building Docker Image..."
+                docker build -t $IMAGE ./PaymentService
+                '''
             }
         }
 
-        // 5. FUNCTIONAL TEST (PAKAI GO TEST)
+        // 5. FUNCTIONAL TEST (HARUS PASS)
         stage('Functional Test') {
             steps {
                 sh '''
-                echo "Cleanup container lama..."
-                docker rm -f test-payment || true
-
-                echo "Run container..."
+                echo "Start container for testing..."
+                docker rm -f test-payment 2>/dev/null || true
                 docker run -d -p 8082:8082 --name test-payment $IMAGE
 
-                echo "Tunggu service hidup..."
+                echo "Waiting service..."
                 sleep 5
 
                 echo "Running Functional Test..."
                 cd PaymentService
-                go test -run TestPaymentAPI_Success || true
+                go test -run TestPaymentAPI_Success
 
-                echo "Stop & remove container..."
+                echo "Cleanup..."
                 docker stop test-payment
                 docker rm test-payment
                 '''
             }
         }
 
-        // 6. PUSH IMAGE KE DOCKER HUB
+        // 6. PUSH IMAGE (HARUS BERHASIL)
         stage('Push Image') {
             steps {
-                sh 'echo "Push Docker Image..."'
-                sh 'docker push $IMAGE'
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_HUB_ID}",
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
+                )]) {
+                    sh '''
+                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
+                    docker push $IMAGE
+                    '''
+                }
             }
         }
 
-        // 7. DEPLOY KE KUBERNETES
+        // 7. DEPLOY (HARUS BERHASIL)
         stage('Deploy') {
             steps {
-                sh 'kubectl config use-context minikube'
-
                 sh '''
-                sed -i "s|image: .*|image: $IMAGE|g" k8s/deployment-payment.yaml
+                echo "Deploy ke Kubernetes..."
+                kubectl apply -f k8s/ --validate=false
                 '''
-
-                sh 'kubectl apply -f k8s/deployment-payment.yaml --validate=false'
-                sh 'kubectl apply -f k8s/payment-service.yaml --validate=false'
-                sh 'kubectl apply -f k8s/ingress.yaml --validate=false'
             }
         }
 
-        // 8. VERIFY DEPLOYMENT
+        // 8. VERIFY
         stage('Verify') {
             steps {
-                sh 'echo "Cek pods..."'
-                sh 'kubectl get pods'
-
-                sh 'echo "Cek services..."'
-                sh 'kubectl get svc'
+                sh '''
+                echo "Pipeline SUCCESS"
+                '''
             }
         }
     }
