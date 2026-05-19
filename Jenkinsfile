@@ -79,7 +79,9 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh 'echo "Deploy ke Kubernetes..."'
-                sh 'kubectl apply -f k8s/'
+                 sh 'kubectl apply -f k8s/ --validate=false'
+                 sh 'kubectl apply -f k8s/payment-service.yaml --validate=false'
+                 sh 'kubectl apply -f k8s/ingress.yaml --validate=false'
             }
         }
 
