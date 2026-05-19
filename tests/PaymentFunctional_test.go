@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 )
 
 type Response struct {
@@ -19,10 +19,15 @@ func TestPaymentAPI_Success(t *testing.T) {
 	// =========================
 	// HIT API
 	// =========================
-	jsonData := []byte(`{"amount":10000,"paid":10000}`)
+	jsonData := []byte(`{
+		"order_id":1,
+		"amount":10000,
+		"paid":10000,
+		"payment_method":"BANK_TRANSFER"
+	}`)
 
 	resp, err := http.Post(
-		"http://localhost:8081/payment",
+		"http://localhost:8082/payment",
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
@@ -35,14 +40,15 @@ func TestPaymentAPI_Success(t *testing.T) {
 	var result Response
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	if result.Status != "paid" {
-		t.Errorf("Expected paid, got %s", result.Status)
+	if result.Status != "PAID" {
+		t.Errorf("Expected PAID, got %s", result.Status)
 	}
 
 	// =========================
-	// CEK DATABASE
+	// CEK DATABASE (POSTGRES)
 	// =========================
-	db, err := sql.Open("mysql", "root:@tcp(localhost:3306)/db_logistic")
+	db, err := sql.Open("postgres",
+		"host=localhost port=5432 user=postgres password=1234 dbname=payment_db sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
