@@ -12,37 +12,45 @@ pipeline {
 
         stage('Unit Test') {
             steps {
-                bat 'go test ./... || exit 0'
+                sh 'go test ./...'
             }
         }
 
         stage('Vet') {
             steps {
-                bat 'go vet ./...'
+                sh 'go vet ./...'
             }
         }
 
-        stage('Build & Push') {
+        stage('Build Image') {
             steps {
-                bat 'build-push.bat'
+                sh 'docker build -t payment-service:latest .'
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh 'docker tag payment-service:latest yourdockerhub/payment-service:latest'
+                sh 'docker push yourdockerhub/payment-service:latest'
             }
         }
 
         stage('Functional Test') {
             steps {
-                bat 'run-functional.bat || exit 0'
+                sh './run-functional.sh'
             }
         }
 
         stage('Deploy') {
             steps {
-                bat 'kubectl apply -f k8s/'
+                sh 'kubectl apply -f k8s/'
             }
         }
 
         stage('Verify') {
             steps {
-                bat 'kubectl get pods && kubectl get svc'
+                sh 'kubectl get pods'
+                sh 'kubectl get svc'
             }
         }
     }

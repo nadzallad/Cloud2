@@ -13,7 +13,7 @@ spec:
               service:
                 name: payment-service
                 port:
-                  number: 80
+                  number: 82
 
           - path: /api/order
             pathType: Prefix
@@ -21,4 +21,4 @@ spec:
               service:
                 name: order-service
                 port:
-                  number: 80
+                  number: 81

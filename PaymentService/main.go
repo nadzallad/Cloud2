@@ -16,14 +16,20 @@ type PaymentResponse struct {
 
 func paymentHandler(w http.ResponseWriter, r *http.Request) {
 	var req PaymentRequest
-	json.NewDecoder(r.Body).Decode(&req)
 
-	status := "pending"
-	if req.Paid >= req.Amount {
-		status = "paid"
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
 	}
 
-	res := PaymentResponse{Status: status}
+	status := ValidatePayment(req.Amount, req.Paid)
+
+	res := PaymentResponse{
+		Status: status,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)
 }
 

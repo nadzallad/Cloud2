@@ -1,8 +1,11 @@
 package main
 
 func ValidatePayment(amount int, paid int) string {
-	if paid >= amount {
-		return "paid"
+	if paid == 0 {
+		return "PENDING"
 	}
-	return "pending"
+	if paid < amount {
+		return "FAILED"
+	}
+	return "PAID"
 }
