@@ -7,7 +7,6 @@ pipeline {
 
     stages {
 
-        // 1. CHECKOUT REPO
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -15,82 +14,87 @@ pipeline {
             }
         }
 
-        // 2. UNIT TEST (MERAH TAPI LANJUT)
+        // UNIT TEST HARUS PASS
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
-                    echo "Running Unit Test..."
-                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                        sh 'go test ./...'
-                    }
-                }
-            }
-        }
-
-        // 3. LINT / VET (WAJIB HIJAU)
-        stage('Lint / Vet') {
-            steps {
-                dir('PaymentService') {
                     sh '''
-                    echo "Running Go Vet..."
-                    go vet ./...
+                    echo "Running Unit Test..."
+                    go test ./...
                     '''
                 }
             }
         }
 
-        // 4. BUILD DOCKER IMAGE (WAJIB BERHASIL)
+        // VET HARUS PASS
+        stage('Lint / Vet') {
+            steps {
+                dir('PaymentService') {
+                    sh 'go vet ./...'
+                }
+            }
+        }
+
+        // BUILD HARUS BERHASIL
         stage('Build Image') {
             steps {
+                sh 'docker build -t $IMAGE ./PaymentService'
+            }
+        }
+
+        // FUNCTIONAL TEST REAL DB
+        stage('Functional Test') {
+            steps {
                 sh '''
-                echo "Building Docker Image..."
-                docker build -t $IMAGE ./PaymentService
+                echo "START DB"
+                docker rm -f postgres-test || true
+                docker run -d \
+                  --name postgres-test \
+                  -e POSTGRES_PASSWORD=123 \
+                  -e POSTGRES_DB=testdb \
+                  postgres
+
+                echo "WAIT DB READY"
+                until docker exec postgres-test pg_isready; do
+                  sleep 1
+                done
+
+                echo "INIT DB"
+                docker exec -i postgres-test psql -U postgres -d testdb <<EOF
+                CREATE TABLE IF NOT EXISTS payments (
+                  id INT PRIMARY KEY,
+                  amount INT,
+                  status TEXT
+                );
+                DELETE FROM payments;
+                INSERT INTO payments VALUES (1, 50000, 'SUCCESS');
+                EOF
+
+                echo "START APP"
+                docker rm -f test-payment || true
+                docker run -d \
+                  --name test-payment \
+                  --link postgres-test \
+                  -e DB_HOST=postgres-test \
+                  -p 8082:8082 \
+                  $IMAGE
+
+                echo "WAIT API"
+                for i in {1..15}; do
+                  if curl -s http://localhost:8082; then
+                    break
+                  fi
+                  sleep 1
+                done
+
+                echo "RUN TEST"
+                cd PaymentService
+                go test -run TestPaymentAPI_Success
                 '''
             }
         }
 
-        // 5. FUNCTIONAL TEST (MERAH TAPI LANJUT)
-        stage('Functional Test') {
-            steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    sh '''
-                    echo "Run DB container..."
-                    docker rm -f postgres-test || true
-                    docker run -d \
-                    --name postgres-test \
-                    -e POSTGRES_PASSWORD=123 \
-                    -e POSTGRES_DB=testdb \
-                    --health-cmd="pg_isready" \
-                    --health-interval=2s \
-                    postgres
-
-                    echo "Waiting DB ready..."
-                    until [ "$(docker inspect -f {{.State.Health.Status}} postgres-test)" = "healthy" ]; do
-                    sleep 1
-                    done
-
-                    echo "Run app container..."
-                    docker rm -f test-payment || true
-                    docker run -d -p 8082:8082 --name test-payment $IMAGE
-
-                    echo "Waiting API..."
-                    until curl -s http://localhost:8082; do
-                    sleep 1
-                    done
-
-                    echo "Run Functional Test..."
-                    cd PaymentService
-                    go test -run TestPaymentAPI_Success
-
-                    echo "Cleanup..."
-                    docker rm -f test-payment
-                    docker rm -f postgres-test
-                    '''
-                }
-            }
-        }
-
-        // 6. PUSH IMAGE (WAJIB BERHASIL)
+        // PUSH HARUS BERHASIL
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -99,42 +103,23 @@ pipeline {
                     passwordVariable: 'PASSWORD'
                 )]) {
                     sh '''
-                    echo "Login Docker Hub..."
                     echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-
-                    echo "Push Docker Image..."
                     docker push $IMAGE
                     '''
                 }
             }
         }
 
-        // 7. DEPLOY (SIMULASI BIAR AMAN)
         stage('Deploy') {
             steps {
-                sh '''
-                echo "Simulasi deploy ke Kubernetes"
-                echo "kubectl apply -f k8s/"
-                '''
+                sh 'echo "Deploy OK"'
             }
         }
 
-        // 8. VERIFY
         stage('Verify') {
             steps {
-                sh '''
-                echo "Build, Push, dan Pipeline selesai"
-                '''
+                sh 'echo "PIPELINE SUCCESS"'
             }
-        }
-    }
-
-    post {
-        success {
-            echo '✅ PIPELINE SUCCESS (meskipun test merah)'
-        }
-        failure {
-            echo '❌ PIPELINE FAILED (cek vet/build/push)'
         }
     }
 }
