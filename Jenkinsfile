@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'golang:1.22'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     environment {
         DOCKER_HUB_USER = 'nadzalla'
@@ -16,6 +11,7 @@ pipeline {
 
     stages {
 
+        // 1. CHECKOUT
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -23,6 +19,7 @@ pipeline {
             }
         }
 
+        // 2. UNIT TEST (HARUS PASS)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
@@ -34,6 +31,7 @@ pipeline {
             }
         }
 
+        // 3. LINT / VET (HARUS BERSIH)
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -45,6 +43,7 @@ pipeline {
             }
         }
 
+        // 4. BUILD IMAGE (HARUS BERHASIL)
         stage('Build Image') {
             steps {
                 sh '''
@@ -54,6 +53,7 @@ pipeline {
             }
         }
 
+        // 5. FUNCTIONAL TEST (HARUS PASS)
         stage('Functional Test') {
             steps {
                 sh '''
@@ -75,6 +75,7 @@ pipeline {
             }
         }
 
+        // 6. PUSH IMAGE (HARUS BERHASIL)
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -90,6 +91,7 @@ pipeline {
             }
         }
 
+        // 7. DEPLOY (HARUS BERHASIL)
         stage('Deploy') {
             steps {
                 sh '''
@@ -99,9 +101,12 @@ pipeline {
             }
         }
 
+        // 8. VERIFY
         stage('Verify') {
             steps {
-                sh 'echo "Pipeline SUCCESS"'
+                sh '''
+                echo "Pipeline SUCCESS"
+                '''
             }
         }
     }
