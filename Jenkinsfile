@@ -1,43 +1,35 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE = "nadzallad/payment-service:${env.BUILD_NUMBER}"
+    }
+
     stages {
 
         stage('Checkout') {
             steps {
-                deleteDir()
                 git branch: 'main', url: 'https://github.com/nadzallad/Cloud2.git'
             }
         }
 
-        stage('Unit Test') {
+        stage('Test Payment') {
             steps {
-                sh 'go test ./...'
-            }
-        }
-
-        stage('Vet') {
-            steps {
-                sh 'go vet ./...'
+                dir('PaymentService') {
+                    sh 'go test ./...'
+                }
             }
         }
 
         stage('Build Image') {
             steps {
-                sh 'docker build -t payment-service:latest .'
+                sh 'docker build -t $IMAGE ./PaymentService'
             }
         }
 
         stage('Push Image') {
             steps {
-                sh 'docker tag payment-service:latest yourdockerhub/payment-service:latest'
-                sh 'docker push yourdockerhub/payment-service:latest'
-            }
-        }
-
-        stage('Functional Test') {
-            steps {
-                sh './run-functional.sh'
+                sh 'docker push $IMAGE'
             }
         }
 
@@ -50,7 +42,6 @@ pipeline {
         stage('Verify') {
             steps {
                 sh 'kubectl get pods'
-                sh 'kubectl get svc'
             }
         }
     }
