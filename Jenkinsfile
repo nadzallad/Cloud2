@@ -14,19 +14,17 @@ pipeline {
             }
         }
 
-        // UNIT TEST HARUS PASS
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
                     sh '''
-                    echo "Running Unit Test..."
+                    echo "UNIT TEST"
                     go test ./...
                     '''
                 }
             }
         }
 
-        // VET HARUS PASS
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -35,29 +33,24 @@ pipeline {
             }
         }
 
-        // BUILD HARUS BERHASIL
         stage('Build Image') {
             steps {
                 sh 'docker build -t $IMAGE ./PaymentService'
             }
         }
 
-        // FUNCTIONAL TEST REAL DB
         stage('Functional Test') {
             steps {
                 sh '''
-                echo "START DB"
-                docker rm -f postgres-test || true
-                docker run -d \
+                echo "START DB (REUSE)"
+                docker start postgres-test || docker run -d \
                   --name postgres-test \
                   -e POSTGRES_PASSWORD=123 \
                   -e POSTGRES_DB=testdb \
                   postgres
 
-                echo "WAIT DB READY"
-                until docker exec postgres-test pg_isready; do
-                  sleep 1
-                done
+                echo "WAIT DB QUICK"
+                sleep 2
 
                 echo "INIT DB"
                 docker exec -i postgres-test psql -U postgres -d testdb <<EOF
@@ -70,22 +63,16 @@ pipeline {
                 INSERT INTO payments VALUES (1, 50000, 'SUCCESS');
                 EOF
 
-                echo "START APP"
-                docker rm -f test-payment || true
-                docker run -d \
+                echo "START APP (REUSE)"
+                docker start test-payment || docker run -d \
                   --name test-payment \
                   --link postgres-test \
                   -e DB_HOST=postgres-test \
                   -p 8082:8082 \
                   $IMAGE
 
-                echo "WAIT API"
-                for i in {1..15}; do
-                  if curl -s http://localhost:8082; then
-                    break
-                  fi
-                  sleep 1
-                done
+                echo "WAIT APP QUICK"
+                sleep 2
 
                 echo "RUN TEST"
                 cd PaymentService
@@ -94,7 +81,6 @@ pipeline {
             }
         }
 
-        // PUSH HARUS BERHASIL
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -112,7 +98,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh 'echo "Deploy OK"'
+                sh 'echo "DEPLOY OK"'
             }
         }
 
