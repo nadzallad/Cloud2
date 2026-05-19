@@ -24,8 +24,20 @@ pipeline {
             steps {
                 dir('PaymentService') {
                     sh '''
-                    echo "Running Unit Test..."
-                    go test ./...
+                    echo "===== DEBUG ====="
+                    pwd
+                    ls -la
+
+                    echo "===== GO CHECK ====="
+                    which go || echo "GO NOT FOUND"
+                    go version || true
+
+                    echo "===== GO MOD ====="
+                    go mod tidy
+                    go mod download
+
+                    echo "===== RUN TEST ====="
+                    go test -v ./...
                     '''
                 }
             }
