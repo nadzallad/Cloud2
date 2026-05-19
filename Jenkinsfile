@@ -1,15 +1,12 @@
 pipeline {
+    agent any
 
     environment {
         DOCKER_HUB_USER = 'nadzalla'
         DOCKER_HUB_ID   = 'logistic-login'
         GIT_REPO_URL    = 'https://github.com/nadzallad/Cloud2.git'
-        IMAGE = "${DOCKER_HUB_USER}/payment-service:${env.BUILD_NUMBER}"
-    }
 
-    triggers {
-        // AUTO BUILD tiap ada perubahan (backup kalau webhook ga jalan)
-        pollSCM('* * * * *')
+        IMAGE = "${DOCKER_HUB_USER}/payment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -22,23 +19,31 @@ pipeline {
             }
         }
 
-        // 2. UNIT TEST
+        // 2. UNIT TEST (HARUS PASS)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
                     sh '''
-                    echo "Running Unit Test..."
+                    echo "===== DEBUG ====="
+                    pwd
+                    ls -la
 
+                    echo "===== GO CHECK ====="
+                    which go || echo "GO NOT FOUND"
+                    go version || true
+
+                    echo "===== GO MOD ====="
                     go mod tidy
                     go mod download
 
+                    echo "===== RUN TEST ====="
                     go test -v ./...
                     '''
                 }
             }
         }
 
-        // 3. LINT
+        // 3. LINT / VET (HARUS BERSIH)
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -50,7 +55,7 @@ pipeline {
             }
         }
 
-        // 4. BUILD IMAGE
+        // 4. BUILD IMAGE (HARUS BERHASIL)
         stage('Build Image') {
             steps {
                 sh '''
@@ -60,30 +65,29 @@ pipeline {
             }
         }
 
-        // 5. FUNCTIONAL TEST
+        // 5. FUNCTIONAL TEST (HARUS PASS)
         stage('Functional Test') {
             steps {
                 sh '''
-                echo "Start container..."
+                echo "Start container for testing..."
                 docker rm -f test-payment 2>/dev/null || true
                 docker run -d -p 8082:8082 --name test-payment $IMAGE
 
-                echo "Waiting API..."
-                until curl -s http://localhost:8082; do
-                  sleep 2
-                done
+                echo "Waiting service..."
+                sleep 5
 
-                echo "Run Functional Test..."
+                echo "Running Functional Test..."
                 cd PaymentService
                 go test -run TestPaymentAPI_Success
 
+                echo "Cleanup..."
                 docker stop test-payment
                 docker rm test-payment
                 '''
             }
         }
 
-        // 6. PUSH IMAGE
+        // 6. PUSH IMAGE (HARUS BERHASIL)
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -99,16 +103,11 @@ pipeline {
             }
         }
 
-        // 7. DEPLOY
+        // 7. DEPLOY (HARUS BERHASIL)
         stage('Deploy') {
             steps {
                 sh '''
-                echo "Install kubectl..."
-                curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
-                chmod +x kubectl
-                mv kubectl /usr/local/bin/
-
-                echo "Deploy to Kubernetes..."
+                echo "Deploy ke Kubernetes..."
                 kubectl apply -f k8s/ --validate=false
                 '''
             }
@@ -117,17 +116,10 @@ pipeline {
         // 8. VERIFY
         stage('Verify') {
             steps {
-                sh 'echo "PIPELINE SUCCESS"'
+                sh '''
+                echo "Pipeline SUCCESS"
+                '''
             }
-        }
-    }
-
-    post {
-        success {
-            echo '✅ SUCCESS: Pipeline completed!'
-        }
-        failure {
-            echo '❌ FAILED: Check logs!'
         }
     }
 }
