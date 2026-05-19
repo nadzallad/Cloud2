@@ -17,10 +17,7 @@ pipeline {
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
-                    sh '''
-                    echo "UNIT TEST"
-                    go test ./...
-                    '''
+                    sh 'go test -short ./...'
                 }
             }
         }
@@ -42,37 +39,39 @@ pipeline {
         stage('Functional Test') {
             steps {
                 sh '''
-                echo "START DB (REUSE)"
-                docker start postgres-test || docker run -d \
+                echo "START DB"
+                docker rm -f postgres-test || true
+                docker run -d \
                   --name postgres-test \
-                  -e POSTGRES_PASSWORD=123 \
-                  -e POSTGRES_DB=testdb \
+                  -e POSTGRES_PASSWORD=admin123 \
+                  -e POSTGRES_DB=payment_db \
                   postgres
 
-                echo "WAIT DB QUICK"
-                sleep 2
+                sleep 3
 
                 echo "INIT DB"
-                docker exec -i postgres-test psql -U postgres -d testdb <<EOF
+                docker exec -i postgres-test psql -U postgres -d payment_db <<EOF
                 CREATE TABLE IF NOT EXISTS payments (
                   id INT PRIMARY KEY,
                   amount INT,
                   status TEXT
                 );
                 DELETE FROM payments;
-                INSERT INTO payments VALUES (1, 50000, 'SUCCESS');
+                INSERT INTO payments VALUES (1, 10000, 'PAID');
                 EOF
 
-                echo "START APP (REUSE)"
-                docker start test-payment || docker run -d \
+                echo "START APP"
+                docker rm -f test-payment || true
+                docker run -d \
                   --name test-payment \
                   --link postgres-test \
                   -e DB_HOST=postgres-test \
+                  -e DB_NAME=payment_db \
+                  -e DB_PASS=admin123 \
                   -p 8082:8082 \
                   $IMAGE
 
-                echo "WAIT APP QUICK"
-                sleep 2
+                sleep 3
 
                 echo "RUN TEST"
                 cd PaymentService

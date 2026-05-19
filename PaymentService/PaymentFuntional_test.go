@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -16,9 +17,16 @@ type Response struct {
 
 func TestPaymentAPI_Success(t *testing.T) {
 
-	// =========================
+	// WAIT API
+	for i := 0; i < 10; i++ {
+		_, err := http.Get("http://localhost:8082")
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 	// HIT API
-	// =========================
 	jsonData := []byte(`{
 		"order_id":1,
 		"amount":10000,
@@ -44,11 +52,9 @@ func TestPaymentAPI_Success(t *testing.T) {
 		t.Errorf("Expected PAID, got %s", result.Status)
 	}
 
-	// =========================
-	// CEK DATABASE (POSTGRES)
-	// =========================
+	// CONNECT DB (UPDATED)
 	db, err := sql.Open("postgres",
-		"host=localhost port=5432 user=postgres password=1234 dbname=payment_db sslmode=disable")
+		"host=postgres-test port=5432 user=postgres password=admin123 dbname=payment_db sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
