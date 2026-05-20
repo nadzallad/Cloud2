@@ -32,11 +32,13 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                sh 'docker build -t $IMAGE ./PaymentService'
+                sh '''
+                docker build -t $IMAGE ./PaymentService
+                '''
             }
         }
 
-      stage('Functional Test') {
+        stage('Functional Test') {
             steps {
                 script {
                     sh '''
@@ -45,52 +47,45 @@ pipeline {
 
                     echo "🚀 Run container baru"
                     docker run -d --name test-payment \
-                    -e DB_HOST=host.docker.internal \
-                    -e DB_NAME=payment_db \
-                    -e DB_PASS=admin123 \
-                    -p 8082:8082 \
-                    nadzalla/payment-service:latest
+                      -e DB_HOST=host.docker.internal \
+                      -e DB_NAME=payment_db \
+                      -e DB_PASS=admin123 \
+                      -p 8082:8082 \
+                      $IMAGE
 
-                    echo "⏳ Waiting for app to be ready..."
+                    echo "⏳ Waiting for app..."
+
+                    sleep 3
+                    docker logs test-payment
 
                     READY=0
 
                     for i in 1 2 3 4 5
                     do
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                      STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                         -X POST http://host.docker.internal:8082/payment \
                         -H "Content-Type: application/json" \
                         -d '{"amount":1,"paid":1}')
 
-                    echo "Attempt $i → Status: $STATUS"
+                      echo "Attempt $i → Status: $STATUS"
 
-                    if [ "$STATUS" = "200" ]; then
+                      if [ "$STATUS" = "200" ]; then
                         READY=1
                         break
-                    fi
+                      fi
 
-                    sleep 2
+                      sleep 2
                     done
 
                     if [ $READY -eq 0 ]; then
-                    echo "❌ APP FAILED TO START"
-                    docker logs test-payment
-                    exit 1
+                      echo "❌ APP FAILED"
+                      docker logs test-payment
+                      exit 1
                     fi
 
-                    echo "✅ APP READY, RUN FUNCTIONAL TEST"
+                    echo "✅ RUN GO TEST"
 
-                    echo "📂 Masuk ke PaymentService (PENTING)"
                     cd PaymentService
-                    
-                    echo "📂 Current dir:"
-                    pwd
-                    ls -la
-
-                    echo "📦 Fix Go module"
-                    go mod tidy
-
-                    echo "🧪 Run test"
                     go test -v ./... || exit 1
 
                     echo "🧹 Cleanup"
@@ -124,6 +119,8 @@ pipeline {
                   --name prod-payment \
                   -p 8083:8082 \
                   -e DB_HOST=host.docker.internal \
+                  -e DB_NAME=payment_db \
+                  -e DB_PASS=admin123 \
                   $IMAGE
                 '''
             }
@@ -134,18 +131,11 @@ pipeline {
                 sh '''
                 echo "VERIFY API"
 
-                until curl -s http://localhost:8083/payment; do
-                  sleep 1
-                done
+                sleep 3
 
                 RESPONSE=$(curl -s -X POST http://localhost:8083/payment \
                   -H "Content-Type: application/json" \
-                  -d '{
-                    "order_id":2,
-                    "amount":10000,
-                    "paid":10000,
-                    "payment_method":"BANK_TRANSFER"
-                  }')
+                  -d '{"amount":10000,"paid":10000}')
 
                 echo "Response: $RESPONSE"
 
@@ -157,6 +147,12 @@ pipeline {
                 fi
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker rm -f test-payment || true'
         }
     }
 }
