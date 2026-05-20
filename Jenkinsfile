@@ -19,7 +19,7 @@ pipeline {
             steps {
                 dir('PaymentService') {
                     catchError(stageResult: 'FAILURE') {
-                        sh 'go test -run TestCalculate ./...'
+                        sh 'go test -run TestValidatePayment ./...'
                     }
                 }
             }
