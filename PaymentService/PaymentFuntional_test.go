@@ -20,6 +20,7 @@ func TestPaymentAPI_Success(t *testing.T) {
 	// WAIT API READY
 	ready := false
 
+	
 	for i := 0; i < 5; i++ {
 		resp, err := http.Post(
 			"http://localhost:8082/payment",
@@ -28,10 +29,11 @@ func TestPaymentAPI_Success(t *testing.T) {
 		)
 
 		if err == nil && resp.StatusCode == 200 {
+			ready = true 
 			break
 		}
 
-		time.Sleep(500 * time.Millisecond) // 🔥 lebih cepat
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	if !ready {
