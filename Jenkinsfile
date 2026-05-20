@@ -7,7 +7,6 @@ pipeline {
 
     stages {
 
-        // 1. CHECKOUT
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -15,7 +14,7 @@ pipeline {
             }
         }
 
-        // 2. UNIT TEST (BOLEH FAIL, TAPI LANJUT)
+        // UNIT TEST
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
@@ -26,7 +25,7 @@ pipeline {
             }
         }
 
-        // 3. LINT / VET (WAJIB HIJAU)
+        // LINT
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -35,45 +34,23 @@ pipeline {
             }
         }
 
-        // 4. BUILD IMAGE (WAJIB HIJAU)
+        // BUILD
         stage('Build Image') {
             steps {
                 sh 'docker build -t $IMAGE ./PaymentService'
             }
         }
 
-        // 5. FUNCTIONAL TEST (BOLEH FAIL, TAPI LANJUT)
+        // FUNCTIONAL (PAKE DB LU LANGSUNG)
         stage('Functional Test') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh '''
-                    echo "START DB"
-                    docker rm -f postgres-test || true
-                    docker run -d \
-                      --name postgres-test \
-                      -e POSTGRES_PASSWORD=admin123 \
-                      -e POSTGRES_DB=payment_db \
-                      postgres
-
-                    sleep 3
-
-                    echo "INIT DB"
-                    docker exec -i postgres-test psql -U postgres -d payment_db <<EOF
-                    CREATE TABLE IF NOT EXISTS payments (
-                      id INT PRIMARY KEY,
-                      amount INT,
-                      status TEXT
-                    );
-                    DELETE FROM payments;
-                    INSERT INTO payments VALUES (1, 10000, 'PAID');
-                    EOF
-
-                    echo "START APP"
                     docker rm -f test-payment || true
+
                     docker run -d \
                       --name test-payment \
-                      --link postgres-test \
-                      -e DB_HOST=postgres-test \
+                      -e DB_HOST=host.docker.internal \
                       -e DB_NAME=payment_db \
                       -e DB_PASS=admin123 \
                       -p 8082:8082 \
@@ -81,7 +58,6 @@ pipeline {
 
                     sleep 3
 
-                    echo "RUN TEST"
                     cd PaymentService
                     go test -run TestPaymentAPI_Success
                     '''
@@ -89,7 +65,7 @@ pipeline {
             }
         }
 
-        // 6. PUSH (WAJIB HIJAU)
+        // PUSH
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -105,27 +81,50 @@ pipeline {
             }
         }
 
-        // 7. DEPLOY
+        // DEPLOY
         stage('Deploy') {
             steps {
-                sh 'echo "DEPLOY OK"'
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    docker rm -f prod-payment || true
+                    docker run -d \
+                      --name prod-payment \
+                      -p 8083:8082 \
+                      -e DB_HOST=host.docker.internal \
+                      $IMAGE
+                    '''
+                }
             }
         }
 
-        // 8. VERIFY
+        // VERIFY (REAL HIT API)
         stage('Verify') {
             steps {
-                sh 'echo "PIPELINE SUCCESS"'
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh '''
+                    sleep 3
+
+                    RESPONSE=$(curl -s -X POST http://localhost:8083/payment \
+                      -H "Content-Type: application/json" \
+                      -d '{
+                        "order_id":2,
+                        "amount":10000,
+                        "paid":10000,
+                        "payment_method":"BANK_TRANSFER"
+                      }')
+
+                    echo "Response: $RESPONSE"
+
+                    echo "$RESPONSE" | grep PAID
+                    '''
+                }
             }
         }
     }
 
     post {
-        success {
-            echo 'PIPELINE SUCCESS (meskipun ada stage merah)'
-        }
-        failure {
-            echo 'PIPELINE FAILED (cek build/vet/push)'
+        always {
+            echo 'PIPELINE SELESAI'
         }
     }
 }
