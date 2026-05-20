@@ -36,7 +36,7 @@ pipeline {
             }
         }
 
-       stage('Functional Test') {
+      stage('Functional Test') {
             steps {
                 script {
                     sh '''
@@ -80,6 +80,14 @@ pipeline {
 
                     echo "✅ APP READY, RUN FUNCTIONAL TEST"
 
+                    echo "📂 Current dir:"
+                    pwd
+                    ls -la
+
+                    echo "📦 Fix Go module"
+                    go mod tidy
+
+                    echo "🧪 Run test"
                     go test -v ./... || exit 1
 
                     echo "🧹 Cleanup"
