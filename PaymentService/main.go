@@ -31,6 +31,12 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	status := ValidatePayment(req.Amount, req.Paid)
 
+	_, err = db.Exec("DELETE FROM payments")
+	if err != nil {
+		http.Error(w, "Cleanup failed", 500)
+		return
+	}
+	
 	// 🔥 INSERT KE DB
 	_, err = db.Exec(
 		"INSERT INTO payments (amount, paid, status) VALUES ($1, $2, $3)",
