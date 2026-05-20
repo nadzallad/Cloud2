@@ -32,7 +32,7 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                sh 'docker build -t $IMAGE ./PaymentService'
+                sh 'docker build -t nadzalla/payment-service:latest ./PaymentService
             }
         }
 
