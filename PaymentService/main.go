@@ -1,9 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+
+	_ "github.com/lib/pq"
 )
 
 type PaymentRequest struct {
@@ -25,6 +28,25 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := ValidatePayment(req.Amount, req.Paid)
+
+	// 🔥 CONNECT DB
+	db, err := sql.Open("postgres",
+		"host=host.docker.internal port=5432 user=postgres password=admin123 dbname=payment_db sslmode=disable")
+	if err != nil {
+		http.Error(w, "DB error", 500)
+		return
+	}
+	defer db.Close()
+
+	// 🔥 INSERT KE DB
+	_, err = db.Exec(
+		"INSERT INTO payments (amount, paid, status) VALUES ($1, $2, $3)",
+		req.Amount, req.Paid, status,
+	)
+	if err != nil {
+		http.Error(w, "Insert failed", 500)
+		return
+	}
 
 	res := PaymentResponse{
 		Status: status,
