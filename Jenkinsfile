@@ -36,7 +36,7 @@ pipeline {
             }
         }
 
-        stage('Functional Test') {
+       stage('Functional Test') {
             steps {
                 sh '''
                 docker rm -f test-payment || true
@@ -53,7 +53,9 @@ pipeline {
 
                 READY=0
                 for i in {1..5}; do
-                if curl -s http://localhost:8082/payment > /dev/null; then
+                if curl -s -X POST http://localhost:8082/payment \
+                    -H "Content-Type: application/json" \
+                    -d '{"amount":1,"paid":1}' > /dev/null; then
                     READY=1
                     break
                 fi
