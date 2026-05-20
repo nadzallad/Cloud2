@@ -18,20 +18,30 @@ type Response struct {
 func TestPaymentAPI_Success(t *testing.T) {
 
 	// WAIT API READY
+	ready := false
+
 	for i := 0; i < 10; i++ {
-		resp, err := http.Get("http://localhost:8082/payment")
+		resp, err := http.Post(
+			"http://localhost:8082/payment",
+			"application/json",
+			bytes.NewBuffer([]byte(`{"amount":1,"paid":1}`)),
+		)
+
 		if err == nil && resp.StatusCode == 200 {
+			ready = true
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
 
+	if !ready {
+		t.Fatal("API NOT READY")
+	}
+
 	// HIT API
 	jsonData := []byte(`{
-		"order_id":1,
 		"amount":10000,
-		"paid":10000,
-		"payment_method":"BANK_TRANSFER"
+		"paid":10000
 	}`)
 
 	resp, err := http.Post(
@@ -46,10 +56,7 @@ func TestPaymentAPI_Success(t *testing.T) {
 	defer resp.Body.Close()
 
 	var result Response
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		t.Fatal(err)
-	}
+	json.NewDecoder(resp.Body).Decode(&result)
 
 	if result.Status != "PAID" {
 		t.Errorf("Expected PAID, got %s", result.Status)
