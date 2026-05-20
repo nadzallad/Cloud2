@@ -7,6 +7,7 @@ pipeline {
 
     stages {
 
+        // 1. CHECKOUT
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -14,18 +15,18 @@ pipeline {
             }
         }
 
-        // UNIT TEST
+        // 2. UNIT TEST (REAL LOGIC)
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
                     catchError(stageResult: 'FAILURE') {
-                        sh 'go test -run TestValidatePayment ./...'
+                        sh 'go test -v -run TestValidatePayment ./...'
                     }
                 }
             }
         }
 
-        // LINT
+        // 3. LINT
         stage('Lint / Vet') {
             steps {
                 dir('PaymentService') {
@@ -34,38 +35,42 @@ pipeline {
             }
         }
 
-        // BUILD
+        // 4. BUILD
         stage('Build Image') {
             steps {
                 sh 'docker build -t $IMAGE ./PaymentService'
             }
         }
 
-        // FUNCTIONAL (PAKE DB LU LANGSUNG)
-      stage('Functional Test') {
+        // 5. FUNCTIONAL TEST (REAL API + DB)
+        stage('Functional Test') {
             steps {
                 catchError(stageResult: 'FAILURE') {
                     sh '''
+                    echo "RUN APP"
+
                     docker rm -f test-payment || true
 
                     docker run -d \
-                    --name test-payment \
-                    -e DB_HOST=host.docker.internal \
-                    -e DB_NAME=payment_db \
-                    -e DB_PASS=admin123 \
-                    -p 8082:8082 \
-                    $IMAGE
+                      --name test-payment \
+                      -e DB_HOST=host.docker.internal \
+                      -e DB_NAME=payment_db \
+                      -e DB_PASS=admin123 \
+                      -p 8082:8082 \
+                      $IMAGE
 
-                    sleep 3
+                    echo "WAIT APP"
+                    sleep 5
 
+                    echo "RUN FUNCTIONAL TEST"
                     cd PaymentService
-                    go test -run TestFunctional ./...
+                    go test -v -run TestPaymentAPI ./...
                     '''
                 }
             }
         }
-        
-        // PUSH
+
+        // 6. PUSH
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -81,12 +86,13 @@ pipeline {
             }
         }
 
-        // DEPLOY
+        // 7. DEPLOY
         stage('Deploy') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                catchError(stageResult: 'FAILURE') {
                     sh '''
                     docker rm -f prod-payment || true
+
                     docker run -d \
                       --name prod-payment \
                       -p 8083:8082 \
@@ -97,12 +103,14 @@ pipeline {
             }
         }
 
-        // VERIFY (REAL HIT API)
+        // 8. VERIFY (REAL CHECK)
         stage('Verify') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                catchError(stageResult: 'FAILURE') {
                     sh '''
-                    sleep 3
+                    echo "VERIFY API"
+
+                    sleep 5
 
                     RESPONSE=$(curl -s -X POST http://localhost:8083/payment \
                       -H "Content-Type: application/json" \
@@ -124,7 +132,7 @@ pipeline {
 
     post {
         always {
-            echo 'PIPELINE SELESAI'
+            echo 'PIPELINE SELESAI (REAL TEST)'
         }
     }
 }

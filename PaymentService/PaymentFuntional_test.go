@@ -17,14 +17,10 @@ type Response struct {
 
 func TestPaymentAPI_Success(t *testing.T) {
 
-	if testing.Short() {
-		t.Skip("skip functional test")
-	}
-
-	// WAIT API
+	// WAIT API READY
 	for i := 0; i < 10; i++ {
-		_, err := http.Get("http://localhost:8082")
-		if err == nil {
+		resp, err := http.Get("http://localhost:8082/payment")
+		if err == nil && resp.StatusCode == 200 {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -59,13 +55,17 @@ func TestPaymentAPI_Success(t *testing.T) {
 		t.Errorf("Expected PAID, got %s", result.Status)
 	}
 
-	// CONNECT DB (PAKE DB LU)
+	// DB CHECK
 	db, err := sql.Open("postgres",
 		"host=host.docker.internal port=5432 user=postgres password=admin123 dbname=payment_db sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		t.Fatal(err)
+	}
 
 	var status string
 	err = db.QueryRow(`
