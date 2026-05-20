@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -11,7 +12,20 @@ import (
 var db *sql.DB
 
 func InitDB() error {
-	connStr := "host=localhost port=5432 user=postgres password=admin123 dbname=order_db sslmode=disable"
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	password := os.Getenv("DB_PASS")
+	if password == "" {
+		password = "admin123"
+	}
+	dbname := os.Getenv("DB_NAME")
+	if dbname == "" {
+		dbname = "order_db"
+	}
+
+	connStr := fmt.Sprintf("host=%s port=5432 user=postgres password=%s dbname=%s sslmode=disable", host, password, dbname)
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {

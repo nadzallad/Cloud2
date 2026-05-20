@@ -11,7 +11,8 @@ COPY . .
 RUN go build -o order-service
 
 # expose port
-EXPOSE 8080
+EXPOSE 8081
 
 # run aplikasi
 CMD ["./order-service"]
+
