@@ -47,7 +47,7 @@ func TestPaymentAPI_Success(t *testing.T) {
 	}`)
 
 	resp, err := http.Post(
-		"http://localhost:8082/payment",
+		"http://host.docker.internal:8082/payment",
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
