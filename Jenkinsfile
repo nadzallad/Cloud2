@@ -42,17 +42,29 @@ pipeline {
                 docker rm -f test-payment || true
 
                 docker run -d \
-                  --name test-payment \
-                  -e DB_HOST=host.docker.internal \
-                  -e DB_NAME=payment_db \
-                  -e DB_PASS=admin123 \
-                  -p 8082:8082 \
-                  $IMAGE
+                --name test-payment \
+                -e DB_HOST=host.docker.internal \
+                -e DB_NAME=payment_db \
+                -e DB_PASS=admin123 \
+                -p 8082:8082 \
+                $IMAGE
 
                 echo "WAIT APP"
-                until curl -s http://localhost:8082/payment; do
-                  sleep 1
+
+                READY=0
+                for i in {1..5}; do
+                if curl -s http://localhost:8082/payment > /dev/null; then
+                    READY=1
+                    break
+                fi
+                sleep 1
                 done
+
+                if [ $READY -eq 0 ]; then
+                echo "APP FAILED TO START"
+                docker logs test-payment
+                exit 1
+                fi
 
                 cd PaymentService
                 go test -v -run TestPaymentAPI ./...
