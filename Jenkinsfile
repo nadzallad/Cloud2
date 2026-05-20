@@ -80,6 +80,9 @@ pipeline {
 
                     echo "✅ APP READY, RUN FUNCTIONAL TEST"
 
+                    echo "📂 Masuk ke PaymentService (PENTING)"
+                    cd PaymentService
+                    
                     echo "📂 Current dir:"
                     pwd
                     ls -la
