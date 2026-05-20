@@ -38,39 +38,54 @@ pipeline {
 
        stage('Functional Test') {
             steps {
-                sh '''
-                docker rm -f test-payment || true
+                script {
+                    sh '''
+                    echo "🧹 Cleanup container lama"
+                    docker rm -f test-payment || true
 
-                docker run -d \
-                --name test-payment \
-                -e DB_HOST=host.docker.internal \
-                -e DB_NAME=payment_db \
-                -e DB_PASS=admin123 \
-                -p 8082:8082 \
-                $IMAGE
+                    echo "🚀 Run container baru"
+                    docker run -d --name test-payment \
+                    -e DB_HOST=host.docker.internal \
+                    -e DB_NAME=payment_db \
+                    -e DB_PASS=admin123 \
+                    -p 8082:8082 \
+                    nadzalla/payment-service:36
 
-                echo "WAIT APP"
+                    echo "⏳ Waiting for app to be ready..."
 
-                READY=0
-                for i in {1..5}; do
-                if curl -s -X POST http://localhost:8082/payment \
-                    -H "Content-Type: application/json" \
-                    -d '{"amount":1,"paid":1}' > /dev/null; then
-                    READY=1
-                    break
-                fi
-                sleep 1
-                done
+                    READY=0
 
-                if [ $READY -eq 0 ]; then
-                echo "APP FAILED TO START"
-                docker logs test-payment
-                exit 1
-                fi
+                    for i in 1 2 3 4 5
+                    do
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                        -X POST http://host.docker.internal:8082/payment \
+                        -H "Content-Type: application/json" \
+                        -d '{"amount":1,"paid":1}')
 
-                cd PaymentService
-                go test -v -run TestPaymentAPI ./...
-                '''
+                    echo "Attempt $i → Status: $STATUS"
+
+                    if [ "$STATUS" = "200" ]; then
+                        READY=1
+                        break
+                    fi
+
+                    sleep 2
+                    done
+
+                    if [ $READY -eq 0 ]; then
+                    echo "❌ APP FAILED TO START"
+                    docker logs test-payment
+                    exit 1
+                    fi
+
+                    echo "✅ APP READY, RUN FUNCTIONAL TEST"
+
+                    go test -v ./... || exit 1
+
+                    echo "🧹 Cleanup"
+                    docker rm -f test-payment
+                    '''
+                }
             }
         }
 
