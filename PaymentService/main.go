@@ -40,9 +40,10 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 🔥 INSERT KE DB
 	_, err = db.Exec(
-		"INSERT INTO payments (amount, paid, status) VALUES ($1, $2, $3)",
-		req.Amount, req.Paid, status,
+		"INSERT INTO payments (order_id, amount, paid_amount, status) VALUES ($1, $2, $3, $4)",
+		1, req.Amount, req.Paid, status,
 	)
+	
 	if err != nil {
 		http.Error(w, "Insert failed", 500)
 		return
