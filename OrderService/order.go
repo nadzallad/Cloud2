@@ -40,16 +40,23 @@ func CreateTable() error {
 		id SERIAL PRIMARY KEY,
 		user_id INT NOT NULL,
 		sender_name VARCHAR(100),
+		sender_phone VARCHAR(20),
 		sender_address TEXT,
 		receiver_name VARCHAR(100),
+		receiver_phone VARCHAR(20),
 		receiver_address TEXT,
+		item_name VARCHAR(100),
+		item_type VARCHAR(50),
 		weight_kg DECIMAL(10,2),
 		distance_km DECIMAL(10,2),
+		origin_city VARCHAR(100),
+		destination_city VARCHAR(100),
+		service_type VARCHAR(50) DEFAULT 'regular',
 		base_price DECIMAL(10,2),
 		shipping_cost DECIMAL(10,2),
 		total_price DECIMAL(10,2),
 		tracking_number VARCHAR(100) UNIQUE,
-		status VARCHAR(50) DEFAULT 'CREATED',
+		status VARCHAR(50) DEFAULT 'WAITING_PAYMENT',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 	_, err := db.Exec(query)
@@ -60,10 +67,17 @@ func GenerateTrackingNumber(orderID int64) string {
 	return fmt.Sprintf("LOG-%d-%d", orderID, time.Now().Unix())
 }
 
-func CalculateShippingCost(weightKg float64, distanceKm float64) float64 {
-	const pricePerKg = 5000
-	const pricePerKm = 2000
-	return (weightKg * pricePerKg) + (distanceKm * pricePerKm)
+func CalculateShippingCost(weightKg float64, distanceKm float64, serviceType string) float64 {
+	base := (weightKg * 5000) + (distanceKm * 1000)
+
+	switch serviceType {
+	case "express":
+		return base * 1.5
+	case "same_day":
+		return base * 2
+	default:
+		return base
+	}
 }
 
 func CalculateTotalPrice(basePrice float64, shippingCost float64) float64 {
