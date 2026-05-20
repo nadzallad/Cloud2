@@ -23,7 +23,7 @@ func TestPaymentAPI_Success(t *testing.T) {
 	
 	for i := 0; i < 5; i++ {
 		resp, err := http.Post(
-			"http://localhost:8082/payment",
+			"http://host.docker.internal:8082/payment",
 			"application/json",
 			bytes.NewBuffer([]byte(`{"amount":1,"paid":1}`)),
 		)
