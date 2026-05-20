@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -13,8 +14,6 @@ type PaymentRequest struct {
 type PaymentResponse struct {
 	Status string `json:"status"`
 }
-
-
 
 func paymentHandler(w http.ResponseWriter, r *http.Request) {
 	var req PaymentRequest
@@ -37,5 +36,11 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/payment", paymentHandler)
-	http.ListenAndServe(":8082", nil)
+
+	log.Println("🚀 Server starting on :8082")
+
+	err := http.ListenAndServe(":8082", nil)
+	if err != nil {
+		log.Fatal("❌ Server failed:", err)
+	}
 }
