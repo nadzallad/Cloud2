@@ -133,7 +133,7 @@ pipeline {
 
                 sleep 3
 
-                RESPONSE=$(curl -s -X POST http://host.docker.internal:8083/payment
+                RESPONSE=$(curl -s -X POST http://host.docker.internal:8083/payment \
                   -H "Content-Type: application/json" \
                   -d '{"amount":10000,"paid":10000}')
 
@@ -147,12 +147,6 @@ pipeline {
                 fi
                 '''
             }
-        }
-    }
-
-    post {
-        always {
-            sh 'docker rm -f test-payment || true'
         }
     }
 }
