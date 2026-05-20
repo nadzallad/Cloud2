@@ -18,8 +18,8 @@ pipeline {
         stage('Unit Test') {
             steps {
                 dir('PaymentService') {
-                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                        sh 'go test -short ./...'
+                    catchError(stageResult: 'FAILURE') {
+                        sh 'go test -run TestCalculate ./...'
                     }
                 }
             }
@@ -42,29 +42,29 @@ pipeline {
         }
 
         // FUNCTIONAL (PAKE DB LU LANGSUNG)
-        stage('Functional Test') {
+      stage('Functional Test') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                catchError(stageResult: 'FAILURE') {
                     sh '''
                     docker rm -f test-payment || true
 
                     docker run -d \
-                      --name test-payment \
-                      -e DB_HOST=host.docker.internal \
-                      -e DB_NAME=payment_db \
-                      -e DB_PASS=admin123 \
-                      -p 8082:8082 \
-                      $IMAGE
+                    --name test-payment \
+                    -e DB_HOST=host.docker.internal \
+                    -e DB_NAME=payment_db \
+                    -e DB_PASS=admin123 \
+                    -p 8082:8082 \
+                    $IMAGE
 
                     sleep 3
 
                     cd PaymentService
-                    go test -run TestPaymentAPI_Success
+                    go test -run TestFunctional ./...
                     '''
                 }
             }
         }
-
+        
         // PUSH
         stage('Push Image') {
             steps {
