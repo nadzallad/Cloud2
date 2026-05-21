@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipment-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shipment
+  template:
+    metadata:
+      labels:
+        app: shipment
+    spec:
+      containers:
+      - name: shipment-container
+        image: selikakanajmi/shipment-service:latest
+        ports:
+        - containerPort: 8085
+        env:
+        - name: DB_HOST
+          value: "host.docker.internal"
+        - name: DB_NAME
+          value: "shipment_db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "Selikaknjm07"
