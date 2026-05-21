@@ -8,10 +8,17 @@ pipeline {
         DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
         PICKUP_IMAGE = "nadzalla/pickup-service:${env.BUILD_NUMBER}"
         WAREHOUSE_IMAGE = "nadzalla/warehouse-service:${env.BUILD_NUMBER}"
+        TRACKING_IMAGE = "nadzalla/tracking-service:${env.BUILD_NUMBER}"
+        NOTIFICATION_IMAGE = "nadzalla/notification-service:${env.BUILD_NUMBER}"
+
+        NETWORK = "microservices-net"
     }
 
     stages {
 
+        // =====================================================
+        // CHECKOUT
+        // =====================================================
         stage('Checkout Repo') {
             steps {
                 deleteDir()
@@ -19,6 +26,9 @@ pipeline {
             }
         }
 
+        // =====================================================
+        // UNIT TEST
+        // =====================================================
         stage('Unit Test') {
             steps {
 
@@ -57,9 +67,27 @@ pipeline {
                         sh 'go test ./...'
                     }
                 }
+
+                dir('TrackingService') {
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh 'go test -short ./...'
+                    }
+                }
+
+                dir('NotificationService') {
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh '''
+                            go test -short ./... \
+                            -run "TestValidateNotification"
+                        '''
+                    }
+                }
             }
         }
 
+        // =====================================================
+        // LINT / VET
+        // =====================================================
         stage('Lint / Vet') {
             steps {
 
@@ -86,9 +114,20 @@ pipeline {
                 dir('WarehouseService') {
                     sh 'go vet ./...'
                 }
+
+                dir('TrackingService') {
+                    sh 'go vet ./...'
+                }
+
+                dir('NotificationService') {
+                    sh 'go vet ./...'
+                }
             }
         }
 
+        // =====================================================
+        // BUILD IMAGE
+        // =====================================================
         stage('Build Image') {
             steps {
                 sh '''
@@ -98,28 +137,71 @@ pipeline {
                 docker build -t $DELIVERY_IMAGE ./DeliveryService
                 docker build -t $PICKUP_IMAGE ./PickupService
                 docker build -t $WAREHOUSE_IMAGE ./WarehouseService
+                docker build -t $TRACKING_IMAGE ./TrackingService
+                docker build -t $NOTIFICATION_IMAGE ./NotificationService
                 '''
             }
         }
 
+        // =====================================================
+        // FUNCTIONAL TEST
+        // =====================================================
         stage('Functional Test') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    sh '''
-                    docker rm -f test-payment test-order test-delivery test-shipment test-pickup test-warehouse || true
 
+                    sh '''
+                    echo "START FUNCTIONAL TEST"
+
+                    # ================= CLEANUP =================
+                    docker rm -f mongo-test || true
+
+                    docker rm -f \
+                    test-payment \
+                    test-order \
+                    test-delivery \
+                    test-shipment \
+                    test-pickup \
+                    test-warehouse \
+                    test-tracking \
+                    test-notification || true
+
+                    docker network rm $NETWORK || true
+
+                    # ================= CREATE NETWORK =================
+                    docker network create $NETWORK
+
+                    docker network connect $NETWORK jenkins-server || true
+
+                    # ================= MONGODB =================
+                    docker run -d \
+                      --name mongo-test \
+                      --network $NETWORK \
+                      -e MONGO_INITDB_ROOT_USERNAME=admin \
+                      -e MONGO_INITDB_ROOT_PASSWORD=admin123 \
+                      mongo
+
+                    echo "WAIT MONGO"
+                    sleep 15
+
+                    # ================= PAYMENT =================
                     docker run -d --name test-payment \
+                      --network $NETWORK \
                       -e DB_HOST=host.docker.internal \
                       -e DB_NAME=payment_db \
                       -e DB_PASS=admin123 \
                       -p 8082:8082 \
                       $PAYMENT_IMAGE
 
+                    # ================= ORDER =================
                     docker run -d --name test-order \
+                      --network $NETWORK \
                       -p 8081:8081 \
                       $ORDER_IMAGE
 
+                    # ================= DELIVERY =================
                     docker run -d --name test-delivery \
+                      --network $NETWORK \
                       -e DB_HOST=host.docker.internal \
                       -e DB_NAME=delivery_db \
                       -e DB_USER=postgres \
@@ -127,7 +209,9 @@ pipeline {
                       -p 8086:8086 \
                       $DELIVERY_IMAGE
 
+                    # ================= SHIPMENT =================
                     docker run -d --name test-shipment \
+                      --network $NETWORK \
                       -e DB_HOST=host.docker.internal \
                       -e DB_NAME=shipment_db \
                       -e DB_USER=postgres \
@@ -135,15 +219,41 @@ pipeline {
                       -p 8085:8085 \
                       $SHIPMENT_IMAGE
 
+                    # ================= PICKUP =================
                     docker run -d --name test-pickup \
+                      --network $NETWORK \
                       -p 8083:8083 \
                       $PICKUP_IMAGE
 
+                    # ================= WAREHOUSE =================
                     docker run -d --name test-warehouse \
+                      --network $NETWORK \
                       -p 8084:8084 \
                       $WAREHOUSE_IMAGE
 
-                    sleep 10
+                    # ================= TRACKING =================
+                    docker run -d \
+                      --name test-tracking \
+                      --network $NETWORK \
+                      -e MONGO_URI="mongodb://admin:admin123@mongo-test:27017/?authSource=admin" \
+                      -p 8087:8087 \
+                      $TRACKING_IMAGE
+
+                    # ================= NOTIFICATION =================
+                    docker run -d \
+                      --name test-notification \
+                      --network $NETWORK \
+                      -e MONGO_URI="mongodb://admin:admin123@mongo-test:27017/?authSource=admin" \
+                      -p 8088:8088 \
+                      $NOTIFICATION_IMAGE
+
+                    echo "WAIT APPLICATION"
+                    sleep 20
+
+                    echo "CHECK CONTAINER"
+                    docker ps -a
+
+                    # ================= API TEST =================
 
                     curl -s -X POST http://host.docker.internal:8082/payment \
                     -H "Content-Type: application/json" \
@@ -167,12 +277,23 @@ pipeline {
 
                     curl -s http://host.docker.internal:8084/warehouse
 
-                    docker rm -f test-payment test-order test-delivery test-shipment test-pickup test-warehouse || true
+                    # ================= TRACKING TEST =================
+                    cd TrackingService
+                    go test -run TestTrackingAPI_Success
+                    cd ..
+
+                    # ================= NOTIFICATION TEST =================
+                    cd NotificationService
+                    go test -run TestNotificationAPI
+                    cd ..
                     '''
                 }
             }
         }
 
+        // =====================================================
+        // PUSH IMAGE
+        // =====================================================
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -190,82 +311,136 @@ pipeline {
                     docker push $SHIPMENT_IMAGE
                     docker push $PICKUP_IMAGE
                     docker push $WAREHOUSE_IMAGE
+                    docker push $TRACKING_IMAGE
+                    docker push $NOTIFICATION_IMAGE
                     '''
                 }
             }
         }
 
+        // =====================================================
+        // DEPLOY
+        // =====================================================
         stage('Deploy') {
-    steps {
-        sh '''
-        echo "Starting FULL deployment..."
+            steps {
+                sh '''
+                echo "START FULL DEPLOYMENT"
 
-        # ================= CLEAN OLD =================
-        docker rm -f prod-payment prod-order prod-delivery prod-shipment prod-pickup prod-warehouse || true
+                # ================= CLEAN OLD =================
+                docker rm -f mongo-prod || true
 
-        # ================= PAYMENT =================
-        docker run -d --name prod-payment \
-          -e DB_HOST=host.docker.internal \
-          -e DB_NAME=payment_db \
-          -e DB_PASS=admin123 \
-          -p 8082:8082 \
-          $PAYMENT_IMAGE
+                docker rm -f \
+                prod-payment \
+                prod-order \
+                prod-delivery \
+                prod-shipment \
+                prod-pickup \
+                prod-warehouse \
+                prod-tracking \
+                prod-notification || true
 
-        # ================= ORDER =================
-        docker run -d --name prod-order \
-          -p 8081:8081 \
-          $ORDER_IMAGE
+                docker network rm $NETWORK || true
+                docker network create $NETWORK
 
-        # ================= DELIVERY =================
-        docker run -d --name prod-delivery \
-          -e DB_HOST=host.docker.internal \
-          -e DB_NAME=delivery_db \
-          -e DB_USER=postgres \
-          -e DB_PASSWORD=admin123 \
-          -p 8086:8086 \
-          $DELIVERY_IMAGE
+                # ================= MONGODB =================
+                docker run -d \
+                  --name mongo-prod \
+                  --network $NETWORK \
+                  -e MONGO_INITDB_ROOT_USERNAME=admin \
+                  -e MONGO_INITDB_ROOT_PASSWORD=admin123 \
+                  mongo
 
-        # ================= SHIPMENT =================
-        docker run -d --name prod-shipment \
-          -e DB_HOST=host.docker.internal \
-          -e DB_NAME=shipment_db \
-          -e DB_USER=postgres \
-          -e DB_PASSWORD=admin123 \
-          -p 8085:8085 \
-          $SHIPMENT_IMAGE
+                sleep 15
 
-        # ================= PICKUP =================
-        docker run -d --name prod-pickup \
-          -p 8083:8083 \
-          $PICKUP_IMAGE
+                # ================= PAYMENT =================
+                docker run -d --name prod-payment \
+                  --network $NETWORK \
+                  -e DB_HOST=host.docker.internal \
+                  -e DB_NAME=payment_db \
+                  -e DB_PASS=admin123 \
+                  -p 8082:8082 \
+                  $PAYMENT_IMAGE
 
-        # ================= WAREHOUSE =================
-        docker run -d --name prod-warehouse \
-          -p 8084:8084 \
-          $WAREHOUSE_IMAGE
+                # ================= ORDER =================
+                docker run -d --name prod-order \
+                  --network $NETWORK \
+                  -p 8081:8081 \
+                  $ORDER_IMAGE
 
-        echo "Waiting services to be ready..."
-        sleep 12
+                # ================= DELIVERY =================
+                docker run -d --name prod-delivery \
+                  --network $NETWORK \
+                  -e DB_HOST=host.docker.internal \
+                  -e DB_NAME=delivery_db \
+                  -e DB_USER=postgres \
+                  -e DB_PASSWORD=admin123 \
+                  -p 8086:8086 \
+                  $DELIVERY_IMAGE
 
-        # ================= HEALTH CHECK =================
-        echo "Checking containers..."
+                # ================= SHIPMENT =================
+                docker run -d --name prod-shipment \
+                  --network $NETWORK \
+                  -e DB_HOST=host.docker.internal \
+                  -e DB_NAME=shipment_db \
+                  -e DB_USER=postgres \
+                  -e DB_PASSWORD=admin123 \
+                  -p 8085:8085 \
+                  $SHIPMENT_IMAGE
 
-        docker ps | grep prod-payment || exit 1
-        docker ps | grep prod-order || exit 1
-        docker ps | grep prod-delivery || exit 1
-        docker ps | grep prod-shipment || exit 1
-        docker ps | grep prod-pickup || exit 1
-        docker ps | grep prod-warehouse || exit 1
+                # ================= PICKUP =================
+                docker run -d --name prod-pickup \
+                  --network $NETWORK \
+                  -p 8083:8083 \
+                  $PICKUP_IMAGE
 
-        echo "ALL CONTAINERS RUNNING"
-        '''
-    }
-}
+                # ================= WAREHOUSE =================
+                docker run -d --name prod-warehouse \
+                  --network $NETWORK \
+                  -p 8084:8084 \
+                  $WAREHOUSE_IMAGE
 
+                # ================= TRACKING =================
+                docker run -d \
+                  --name prod-tracking \
+                  --network $NETWORK \
+                  -e MONGO_URI="mongodb://admin:admin123@mongo-prod:27017/?authSource=admin" \
+                  -p 8087:8087 \
+                  $TRACKING_IMAGE
+
+                # ================= NOTIFICATION =================
+                docker run -d \
+                  --name prod-notification \
+                  --network $NETWORK \
+                  -e MONGO_URI="mongodb://admin:admin123@mongo-prod:27017/?authSource=admin" \
+                  -p 8088:8088 \
+                  $NOTIFICATION_IMAGE
+
+                echo "WAIT SERVICES"
+                sleep 20
+
+                echo "CHECK CONTAINERS"
+
+                docker ps | grep prod-payment || exit 1
+                docker ps | grep prod-order || exit 1
+                docker ps | grep prod-delivery || exit 1
+                docker ps | grep prod-shipment || exit 1
+                docker ps | grep prod-pickup || exit 1
+                docker ps | grep prod-warehouse || exit 1
+                docker ps | grep prod-tracking || exit 1
+                docker ps | grep prod-notification || exit 1
+
+                echo "ALL CONTAINERS RUNNING"
+                '''
+            }
+        }
+
+        // =====================================================
+        // VERIFY
+        // =====================================================
         stage('Verify') {
             steps {
                 sh '''
-                echo "Verifying full system..."
+                echo "VERIFY FULL SYSTEM"
 
                 PAYMENT=$(curl -s -X POST http://host.docker.internal:8082/payment \
                 -H "Content-Type: application/json" \
@@ -298,9 +473,50 @@ pipeline {
 
                 curl -s http://host.docker.internal:8084/warehouse || exit 1
 
-                echo "ALL SERVICES OK"
+                # ================= TRACKING VERIFY =================
+                curl -s http://host.docker.internal:8087/tracking || true
+
+                # ================= NOTIFICATION VERIFY =================
+                curl -s http://host.docker.internal:8088/notification || true
+
+                echo "ALL SERVICES VERIFIED"
                 '''
             }
+        }
+    }
+
+    // =====================================================
+    // POST
+    // =====================================================
+    post {
+
+        success {
+            echo 'PIPELINE SUCCESS'
+        }
+
+        failure {
+            echo 'PIPELINE FAILED'
+        }
+
+        always {
+
+            sh '''
+            docker network disconnect $NETWORK jenkins-server || true
+
+            docker rm -f mongo-test mongo-prod || true
+
+            docker rm -f \
+            test-payment \
+            test-order \
+            test-delivery \
+            test-shipment \
+            test-pickup \
+            test-warehouse \
+            test-tracking \
+            test-notification || true
+
+            docker network rm $NETWORK || true
+            '''
         }
     }
 }
