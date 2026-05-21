@@ -4,8 +4,6 @@ pipeline {
     environment {
         PAYMENT_IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
         ORDER_IMAGE = "nadzalla/order-service:${env.BUILD_NUMBER}"
-        DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
-        SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -72,8 +70,7 @@ pipeline {
                 sh '''
                 docker build -t $PAYMENT_IMAGE ./PaymentService
                 docker build -t $ORDER_IMAGE ./OrderService
-                docker build -t $DELIVERY_IMAGE ./DeliveryService
-                docker build -t $SHIPMENT_IMAGE ./ShipmentService
+             
                 '''
             }
         }
