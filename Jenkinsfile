@@ -114,20 +114,20 @@ pipeline {
                     sleep 10
 
                     curl -s -X POST http://host.docker.internal:8082/payment \
-                      -H "Content-Type: application/json" \
-                      -d '{"amount":1,"paid":1}'
+                        -H "Content-Type: application/json" \
+                        -d '{"amount":1,"paid":1}'
 
                     curl -s -X POST http://host.docker.internal:8081/order \
-                      -H "Content-Type: application/json" \
-                      -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}'
-
-                    curl -s -X POST http://host.docker.internal:8086/delivery \
-                      -H "Content-Type: application/json" \
-                      -d '{"order_id":1,"address":"Bandung"}'
+                        -H "Content-Type: application/json" \
+                        -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}'
 
                     curl -s -X POST http://host.docker.internal:8085/shipment \
-                      -H "Content-Type: application/json" \
-                      -d king_number":"LOG-0-1779347830"}'
+                        -H "Content-Type: application/json" \
+                        -d '{"tracking_number":"LOG-0-1779347830"}'
+
+                    curl -s -X POST http://host.docker.internal:8086/delivery \
+                        -H "Content-Type: application/json" \
+                        -d '{"tracking_number":"LOG-0-1779347830","address":"Bandung"}'
 
                     docker rm -f test-payment test-order test-delivery test-shipment || true
                     '''
