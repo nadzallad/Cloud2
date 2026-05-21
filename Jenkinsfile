@@ -6,6 +6,8 @@ pipeline {
         ORDER_IMAGE = "nadzalla/order-service:${env.BUILD_NUMBER}"
         SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
         DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
+        PICKUP_IMAGE = "naurafaizah/pickup-service:${env.BUILD_NUMBER}"
+        WAREHOUSE_IMAGE = "naurafaizah/warehouse-service:${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -43,6 +45,18 @@ pipeline {
                         sh 'go test ./...'
                     }
                 }
+
+                dir('PickupService') {
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh 'go test ./...'
+                    }
+                }
+
+                dir('WarehouseService') {
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh 'go test ./...'
+                    }
+                }
             }
         }
 
@@ -64,6 +78,14 @@ pipeline {
                 dir('ShipmentService') {
                     sh 'go vet ./...'
                 }
+
+                dir('PickupService') {
+                    sh 'go vet ./...'
+                }
+
+                dir('WarehouseService') {
+                    sh 'go vet ./...'
+                }
             }
         }
 
@@ -74,6 +96,8 @@ pipeline {
                 docker build -t $ORDER_IMAGE ./OrderService
                 docker build -t $SHIPMENT_IMAGE ./ShipmentService
                 docker build -t $DELIVERY_IMAGE ./DeliveryService
+                docker build -t $PICKUP_IMAGE ./PickupService
+                docker build -t $WAREHOUSE_IMAGE ./WarehouseService
                 '''
             }
         }
@@ -82,7 +106,7 @@ pipeline {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh '''
-                    docker rm -f test-payment test-order test-delivery test-shipment || true
+                    docker rm -f test-payment test-order test-delivery test-shipment test-pickup test-warehouse || true
 
                     docker run -d --name test-payment \
                       -e DB_HOST=host.docker.internal \
@@ -111,26 +135,39 @@ pipeline {
                       -p 8085:8085 \
                       $SHIPMENT_IMAGE
 
+                    docker run -d --name test-pickup \
+                      -p 8089:8089 \
+                      $PICKUP_IMAGE
+
+                    docker run -d --name test-warehouse \
+                      -p 8090:8090 \
+                      $WAREHOUSE_IMAGE
+
                     sleep 10
 
                     curl -s -X POST http://host.docker.internal:8082/payment \
-                        -H "Content-Type: application/json" \
-                        -d '{"amount":1,"paid":1}'
+                    -H "Content-Type: application/json" \
+                    -d '{"amount":1,"paid":1}'
 
                     curl -s -X POST http://host.docker.internal:8081/order \
-                        -H "Content-Type: application/json" \
-                        -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}'
+                    -H "Content-Type: application/json" \
+                    -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}'
 
                     curl -s -X POST http://host.docker.internal:8086/delivery \
-                        -H "Content-Type: application/json" \
-                        -d '{"tracking_number":"LOG-0-1779347830","address":"Bandung"}'
-                        
+                    -H "Content-Type: application/json" \
+                    -d '{"tracking_number":"LOG-0-1779347830","address":"Bandung"}'
+
                     curl -s -X POST http://host.docker.internal:8085/shipment \
-                        -H "Content-Type: application/json" \
-                        -d '{"tracking_number":"LOG-0-1779347830"}'
+                    -H "Content-Type: application/json" \
+                    -d '{"tracking_number":"LOG-0-1779347830"}'
 
+                    curl -s -X POST http://host.docker.internal:8089/pickup \
+                    -H "Content-Type: application/json" \
+                    -d '{"order_id":"ORD1","payment_status":"paid","weight":2}'
 
-                    docker rm -f test-payment test-order test-delivery test-shipment || true
+                    curl -s http://host.docker.internal:8090/warehouse
+
+                    docker rm -f test-payment test-order test-delivery test-shipment test-pickup test-warehouse || true
                     '''
                 }
             }
@@ -138,49 +175,21 @@ pipeline {
 
         stage('Push Image') {
             steps {
-
                 withCredentials([usernamePassword(
                     credentialsId: 'logistic-login',
                     usernameVariable: 'USERNAME',
                     passwordVariable: 'PASSWORD'
                 )]) {
+
                     sh '''
                     echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
+
                     docker push $PAYMENT_IMAGE
-                    '''
-                }
-
-                withCredentials([usernamePassword(
-                    credentialsId: 'logistic-login',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    sh '''
-                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-
                     docker push $ORDER_IMAGE
-                    '''
-                }
-
-                withCredentials([usernamePassword(
-                    credentialsId: 'logistic-login',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    sh '''
-                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
                     docker push $DELIVERY_IMAGE
-                    '''
-                }
-
-                withCredentials([usernamePassword(
-                    credentialsId: 'logistic-login',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    sh '''
-                    echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
                     docker push $SHIPMENT_IMAGE
+                    docker push $PICKUP_IMAGE
+                    docker push $WAREHOUSE_IMAGE
                     '''
                 }
             }
@@ -197,21 +206,15 @@ pipeline {
                 sh '''
                 echo "Verifying full system..."
 
-                # ================= PAYMENT =================
                 PAYMENT=$(curl -s -X POST http://host.docker.internal:8082/payment \
                 -H "Content-Type: application/json" \
                 -d '{"amount":1,"paid":1}')
 
-                echo "PAYMENT: $PAYMENT"
-
                 echo $PAYMENT | grep "PAID" || exit 1
 
-                # ================= ORDER =================
                 ORDER=$(curl -s -X POST http://host.docker.internal:8081/order \
                 -H "Content-Type: application/json" \
                 -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}')
-
-                echo "ORDER: $ORDER"
 
                 TRACKING=$(echo $ORDER | jq -r '.tracking_number')
 
@@ -220,21 +223,19 @@ pipeline {
                     exit 1
                 fi
 
-                echo "TRACKING: $TRACKING"
-
-                # ================= DELIVERY =================
-                DELIVERY=$(curl -s -X POST http://host.docker.internal:8086/delivery \
+                curl -s -X POST http://host.docker.internal:8086/delivery \
                 -H "Content-Type: application/json" \
-                -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}")
+                -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}" || exit 1
 
-                echo "DELIVERY: $DELIVERY"
-
-                # ================= SHIPMENT =================
-                SHIPMENT=$(curl -s -X POST http://host.docker.internal:8085/shipment \
+                curl -s -X POST http://host.docker.internal:8085/shipment \
                 -H "Content-Type: application/json" \
-                -d "{\"tracking_number\":\"$TRACKING\"}")
+                -d "{\"tracking_number\":\"$TRACKING\"}" || exit 1
 
-                echo "SHIPMENT: $SHIPMENT"
+                curl -s -X POST http://host.docker.internal:8089/pickup \
+                -H "Content-Type: application/json" \
+                -d '{"order_id":"ORD1","payment_status":"paid","weight":2}' || exit 1
+
+                curl -s http://host.docker.internal:8090/warehouse || exit 1
 
                 echo "ALL SERVICES OK"
                 '''
