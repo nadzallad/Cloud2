@@ -195,12 +195,36 @@ pipeline {
         stage('Verify') {
             steps {
                 sh '''
-                echo "Checking services..."
+                echo "Verifying full system..."
 
-                curl -f http://localhost:8082/payment || exit 1
-                curl -f http://localhost:8081/order || exit 1
-                curl -f http://localhost:8086/delivery || exit 1
-                curl -f http://localhost:8085/shipment || exit 1
+                # PAYMENT
+                PAYMENT=$(curl -s -X POST http://host.docker.internal:8082/payment \
+                -H "Content-Type: application/json" \
+                -d '{"amount":1,"paid":1}')
+
+                echo $PAYMENT | grep "PAID" || exit 1
+
+                # ORDER
+                ORDER=$(curl -s -X POST http://host.docker.internal:8081/order \
+                -H "Content-Type: application/json" \
+                -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}')
+
+                TRACKING=$(echo $ORDER | jq -r '.tracking_number')
+
+                if [ -z "$TRACKING" ] || [ "$TRACKING" = "null" ]; then
+                    echo "Tracking not found"
+                    exit 1
+                fi
+
+                # DELIVERY
+                curl -s -X POST http://host.docker.internal:8086/delivery \
+                -H "Content-Type: application/json" \
+                -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}" || exit 1
+
+                # SHIPMENT
+                curl -s -X POST http://host.docker.internal:8085/shipment \
+                -H "Content-Type: application/json" \
+                -d "{\"tracking_number\":\"$TRACKING\"}" || exit 1
 
                 echo "ALL SERVICES OK"
                 '''
