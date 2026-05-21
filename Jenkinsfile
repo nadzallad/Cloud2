@@ -6,7 +6,6 @@ pipeline {
         ORDER_IMAGE = "nadzalla/order-service:${env.BUILD_NUMBER}"
         SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
         DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
-
         PICKUP_IMAGE = "nadzalla/pickup-service:${env.BUILD_NUMBER}"
         WAREHOUSE_IMAGE = "nadzalla/warehouse-service:${env.BUILD_NUMBER}"
     }
@@ -197,10 +196,71 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                sh 'echo "DEPLOY OK"'
-            }
-        }
+    steps {
+        sh '''
+        echo "Starting FULL deployment..."
+
+        # ================= CLEAN OLD =================
+        docker rm -f prod-payment prod-order prod-delivery prod-shipment prod-pickup prod-warehouse || true
+
+        # ================= PAYMENT =================
+        docker run -d --name prod-payment \
+          -e DB_HOST=host.docker.internal \
+          -e DB_NAME=payment_db \
+          -e DB_PASS=admin123 \
+          -p 8082:8082 \
+          $PAYMENT_IMAGE
+
+        # ================= ORDER =================
+        docker run -d --name prod-order \
+          -p 8081:8081 \
+          $ORDER_IMAGE
+
+        # ================= DELIVERY =================
+        docker run -d --name prod-delivery \
+          -e DB_HOST=host.docker.internal \
+          -e DB_NAME=delivery_db \
+          -e DB_USER=postgres \
+          -e DB_PASSWORD=admin123 \
+          -p 8086:8086 \
+          $DELIVERY_IMAGE
+
+        # ================= SHIPMENT =================
+        docker run -d --name prod-shipment \
+          -e DB_HOST=host.docker.internal \
+          -e DB_NAME=shipment_db \
+          -e DB_USER=postgres \
+          -e DB_PASSWORD=admin123 \
+          -p 8085:8085 \
+          $SHIPMENT_IMAGE
+
+        # ================= PICKUP =================
+        docker run -d --name prod-pickup \
+          -p 8083:8083 \
+          $PICKUP_IMAGE
+
+        # ================= WAREHOUSE =================
+        docker run -d --name prod-warehouse \
+          -p 8084:8084 \
+          $WAREHOUSE_IMAGE
+
+        echo "Waiting services to be ready..."
+        sleep 12
+
+        # ================= HEALTH CHECK =================
+        echo "Checking containers..."
+
+        docker ps | grep prod-payment || exit 1
+        docker ps | grep prod-order || exit 1
+        docker ps | grep prod-delivery || exit 1
+        docker ps | grep prod-shipment || exit 1
+        docker ps | grep prod-pickup || exit 1
+        docker ps | grep prod-warehouse || exit 1
+
+        echo "ALL CONTAINERS RUNNING"
+        '''
+    }
+}
 
         stage('Verify') {
             steps {
