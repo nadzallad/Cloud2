@@ -7,8 +7,8 @@ pipeline {
         SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
         DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
 
-        PICKUP_IMAGE = "naurafaizah/pickup-service:${env.BUILD_NUMBER}"
-        WAREHOUSE_IMAGE = "naurafaizah/warehouse-service:${env.BUILD_NUMBER}"
+        PICKUP_IMAGE = "nadzalla/pickup-service:${env.BUILD_NUMBER}"
+        WAREHOUSE_IMAGE = "nadzalla/warehouse-service:${env.BUILD_NUMBER}"
     }
 
     stages {
