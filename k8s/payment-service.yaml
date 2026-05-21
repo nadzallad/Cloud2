@@ -1,11 +1,26 @@
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: payment-service
+  name: payment-deployment
 spec:
-  type: ClusterIP
+  replicas: 1
   selector:
-    app: payment
-  ports:
-    - port: 80
-      targetPort: 8082
+    matchLabels:
+      app: payment
+  template:
+    metadata:
+      labels:
+        app: payment
+    spec:
+      containers:
+        - name: payment-container
+          image: nadzalla/payment-service:latest
+          ports:
+            - containerPort: 8082
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
