@@ -13,23 +13,12 @@ var DB *sql.DB
 
 func ConnectDB() {
 	host := os.Getenv("DB_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-
 	dbName := os.Getenv("DB_NAME")
-	if dbName == "" {
-		dbName = "shipment_db"
-	}
-
 	user := os.Getenv("DB_USER")
-	if user == "" {
-		user = "postgres"
-	}
-
 	password := os.Getenv("DB_PASSWORD")
-	if password == "" {
-		password = "Selikaknjm07"
+
+	if host == "" || dbName == "" || user == "" || password == "" {
+		log.Fatal("Database environment variables are missing")
 	}
 
 	connStr := fmt.Sprintf(
