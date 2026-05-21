@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: delivery-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: delivery
+  template:
+    metadata:
+      labels:
+        app: delivery
+    spec:
+      containers:
+      - name: delivery-container
+        image: selikakanajmi/delivery-service:latest
+        ports:
+        - containerPort: 8086
+        env:
+        - name: DB_HOST
+          value: "host.docker.internal"
+        - name: DB_NAME
+          value: "delivery_db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "Selikaknjm07"

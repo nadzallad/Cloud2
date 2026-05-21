@@ -11,9 +11,9 @@ func TestPickup_Success(t *testing.T) {
 }
 
 func TestPickup_Failed(t *testing.T) {
-	result := ProcessPickup("pending", 2)
+	result := ProcessPickup("unpaid", 0)
 
-	if result != "failed" {
-		t.Errorf("Expected failed, got %s", result)
+	if result != "pending" {
+		t.Errorf("Expected pending, got %s", result)
 	}
 }

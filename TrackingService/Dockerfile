@@ -1,13 +1,15 @@
-FROM golang:1.25
+FROM golang:1.22
 
 WORKDIR /app
 
-# copy folder tracking service
-COPY TrackingService/ TrackingService/
+COPY go.mod go.sum ./
 
-WORKDIR /app/TrackingService
+RUN go mod download
 
-RUN go mod tidy
+COPY . .
+
 RUN go build -o app .
+
+EXPOSE 8087
 
 CMD ["./app"]

@@ -1,68 +1,109 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type TrackingRequest struct {
-	ShipmentID    int    `json:"shipment_id"`
-	TrackingNumber string `json:"tracking_number"`
-	Status        string `json:"status"`
-	Location      string `json:"location"`
-	Note          string `json:"note"`
+	ShipmentID     int       `json:"shipment_id" bson:"shipment_id"`
+	TrackingNumber string    `json:"tracking_number" bson:"tracking_number"`
+	Status         string    `json:"status" bson:"status"`
+	Location       string    `json:"location" bson:"location"`
+	Note           string    `json:"note" bson:"note"`
+	CreatedAt      time.Time `json:"created_at" bson:"created_at"`
 }
 
 type TrackingResponse struct {
 	Status string `json:"status"`
 }
 
-var db *sql.DB
+var trackingCollection *mongo.Collection
 
-func initDB() {
-	var err error
-	db, err = sql.Open("mysql", "root:@tcp(localhost:3306)/db_logistic")
-	if err != nil {
-		panic(err)
+func initMongo() {
+
+	// ambil URI dari environment variable
+	mongoURI := os.Getenv("MONGO_URI")
+
+	// fallback default untuk local development
+	if mongoURI == "" {
+		mongoURI = "mongodb://admin:admin123@localhost:27017/?authSource=admin"
 	}
-}
 
-func trackingHandler(w http.ResponseWriter, r *http.Request) {
-	var req TrackingRequest
-	json.NewDecoder(r.Body).Decode(&req)
-
-	status := ValidateTracking(req.Status)
-
-	// insert ke DB
-	_, err := db.Exec(`
-		INSERT INTO tracking_logs 
-		(shipment_id, tracking_number, status, location, note, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`,
-		req.ShipmentID,
-		req.TrackingNumber,
-		status,
-		req.Location,
-		req.Note,
-		time.Now(),
+	client, err := mongo.Connect(
+		context.TODO(),
+		options.Client().ApplyURI(mongoURI),
 	)
 
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		panic(err)
+	}
+
+	err = client.Ping(context.TODO(), nil)
+	if err != nil {
+		panic(err)
+	}
+
+	db := client.Database("tracking_db")
+	trackingCollection = db.Collection("tracking_logs")
+}
+
+func trackingHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	res := TrackingResponse{Status: status}
-	json.NewEncoder(w).Encode(res)
+	var req TrackingRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.TrackingNumber == "" {
+		http.Error(w, "tracking number required", http.StatusBadRequest)
+		return
+	}
+
+	req.Status = ValidateTracking(req.Status)
+	req.CreatedAt = time.Now()
+
+	_, err = trackingCollection.InsertOne(
+		context.TODO(),
+		req,
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(
+		TrackingResponse{
+			Status: req.Status,
+		},
+	)
 }
 
 func main() {
-	initDB()
+
+	initMongo()
 
 	http.HandleFunc("/tracking", trackingHandler)
-	http.ListenAndServe(":8087", nil)
+
+	err := http.ListenAndServe(":8087", nil)
+	if err != nil {
+		panic(err)
+	}
 }

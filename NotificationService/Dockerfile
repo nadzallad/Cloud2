@@ -1,4 +1,4 @@
-FROM golang:1.25
+FROM golang:1.22
 
 WORKDIR /app
 
@@ -7,6 +7,6 @@ COPY . .
 RUN go mod tidy
 RUN go build -o app .
 
-EXPOSE 8081
+EXPOSE 8088
 
 CMD ["./app"]
