@@ -4,6 +4,8 @@ pipeline {
     environment {
         PAYMENT_IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
         ORDER_IMAGE = "nadzalla/order-service:${env.BUILD_NUMBER}"
+        SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
+        DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
     }
 
     stages {
