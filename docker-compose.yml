@@ -15,6 +15,25 @@ services:
     volumes:
       - warehouse_data:/var/lib/postgresql/data
 
+  mongodb:
+    image: mongo:7
+    container_name: notification_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    ports:
+      - "27017:27017"
+
+  notification-service:
+    build: .
+    container_name: notification_service
+    ports:
+      - "8088:8088"
+    environment:
+      MONGO_URI: mongodb://admin:admin123@mongodb:27017/?authSource=admin
+    depends_on:
+      - mongodb
+
   pickup_postgres:
     image: postgres:16
     container_name: pickup_postgres
