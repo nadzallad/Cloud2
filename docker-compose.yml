@@ -34,6 +34,14 @@ services:
     depends_on:
       - mongodb
 
+  tracking-service:
+    build: .
+    container_name: tracking_service
+    ports:
+      - "8087:8087"
+    depends_on:
+      - mongodb
+
   pickup_postgres:
     image: postgres:16
     container_name: pickup_postgres
