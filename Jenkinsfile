@@ -96,7 +96,7 @@ pipeline {
                       -e DB_HOST=host.docker.internal \
                       -e DB_NAME=delivery_db \
                       -e DB_USER=postgres \
-                      -e DB_PASSWORD=Selikaknjm07 \
+                      -e DB_PASSWORD=admin123 \
                       -p 8086:8086 \
                       $DELIVERY_IMAGE
 
@@ -104,7 +104,7 @@ pipeline {
                       -e DB_HOST=host.docker.internal \
                       -e DB_NAME=shipment_db \
                       -e DB_USER=postgres \
-                      -e DB_PASSWORD=Selikaknjm07 \
+                      -e DB_PASSWORD=admin123 \
                       -p 8085:8085 \
                       $SHIPMENT_IMAGE
 
