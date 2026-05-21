@@ -17,7 +17,7 @@ func TestOrderEndpoint(t *testing.T) {
 
 	jsonBody, _ := json.Marshal(reqBody)
 
-	resp, err := http.Post("http://localhost:8084/order",
+	resp, err := http.Post("http://host.docker.internal:8081/order",
 		"application/json",
 		bytes.NewBuffer(jsonBody))
 

@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        PAYMENT_IMAGE = "kaulie27/payment-service:${env.BUILD_NUMBER}"
-        ORDER_IMAGE = "kaulie27/order-service:${env.BUILD_NUMBER}"
-        DELIVERY_IMAGE = "kaulie27/delivery-service:${env.BUILD_NUMBER}"
-        SHIPMENT_IMAGE = "kaulie27/shipment-service:${env.BUILD_NUMBER}"
+        PAYMENT_IMAGE = "nadzalla/payment-service:${env.BUILD_NUMBER}"
+        ORDER_IMAGE = "nadzalla/order-service:${env.BUILD_NUMBER}"
+        DELIVERY_IMAGE = "nadzalla/delivery-service:${env.BUILD_NUMBER}"
+        SHIPMENT_IMAGE = "nadzalla/shipment-service:${env.BUILD_NUMBER}"
     }
 
     stages {
