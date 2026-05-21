@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pickup
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pickup
+  template:
+    metadata:
+      labels:
+        app: pickup
+    spec:
+      containers:
+        - name: pickup
+          image: YOUR_DOCKERHUB/pickup-service:latest
+          ports:
+            - containerPort: 8089
