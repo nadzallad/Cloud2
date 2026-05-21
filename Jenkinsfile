@@ -72,7 +72,8 @@ pipeline {
                 sh '''
                 docker build -t $PAYMENT_IMAGE ./PaymentService
                 docker build -t $ORDER_IMAGE ./OrderService
-             
+                docker build -t $SHIPMENT_IMAGE ./ShipmentService
+                docker build -t $DELIVERY_IMAGE ./DeliveryService
                 '''
             }
         }
