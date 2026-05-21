@@ -2,21 +2,32 @@ version: '3.8'
 
 services:
 
-  postgres:
+  warehouse_postgres:
     image: postgres:16
     container_name: warehouse_postgres
+    restart: always
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin123
       POSTGRES_DB: warehouse_db
     ports:
       - "5432:5432"
+    volumes:
+      - warehouse_data:/var/lib/postgresql/data
 
-  mongodb:
-    image: mongo:7
-    container_name: pickup_mongo
+  pickup_postgres:
+    image: postgres:16
+    container_name: pickup_postgres
+    restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: pickup_db
     ports:
-      - "27017:27017"
+      - "5433:5432"
+    volumes:
+      - pickup_data:/var/lib/postgresql/data
+
+volumes:
+  warehouse_data:
+  pickup_data:
