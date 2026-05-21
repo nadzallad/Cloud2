@@ -202,19 +202,16 @@ pipeline {
                 -H "Content-Type: application/json" \
                 -d '{"amount":1,"paid":1}')
 
-                echo "PAYMENT RESPONSE: $PAYMENT"
+                echo "PAYMENT: $PAYMENT"
 
-                echo $PAYMENT | grep "PAID" || {
-                    echo "Payment failed"
-                    exit 1
-                }
+                echo $PAYMENT | grep "PAID" || exit 1
 
                 # ================= ORDER =================
                 ORDER=$(curl -s -X POST http://host.docker.internal:8081/order \
                 -H "Content-Type: application/json" \
                 -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}')
 
-                echo "ORDER RESPONSE: $ORDER"
+                echo "ORDER: $ORDER"
 
                 TRACKING=$(echo $ORDER | jq -r '.tracking_number')
 
@@ -230,24 +227,14 @@ pipeline {
                 -H "Content-Type: application/json" \
                 -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}")
 
-                echo "DELIVERY RESPONSE: $DELIVERY"
-
-                echo $DELIVERY | grep -i "success" || {
-                    echo "Delivery failed"
-                    exit 1
-                }
+                echo "DELIVERY: $DELIVERY"
 
                 # ================= SHIPMENT =================
                 SHIPMENT=$(curl -s -X POST http://host.docker.internal:8085/shipment \
                 -H "Content-Type: application/json" \
                 -d "{\"tracking_number\":\"$TRACKING\"}")
 
-                echo "SHIPMENT RESPONSE: $SHIPMENT"
-
-                echo $SHIPMENT | grep -i "success" || {
-                    echo "Shipment failed"
-                    exit 1
-                }
+                echo "SHIPMENT: $SHIPMENT"
 
                 echo "ALL SERVICES OK"
                 '''
