@@ -23,9 +23,11 @@ func createDelivery(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	ConnectDB()
+
 	http.HandleFunc("/", home)
 	http.HandleFunc("/delivery", createDelivery)
 
-	fmt.Println("Delivery Service running on port 8081")
+	fmt.Println("Delivery Service running on port 8086")
 	http.ListenAndServe(":8086", nil)
 }
