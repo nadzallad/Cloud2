@@ -4,8 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-WORKDIR /app/DeliveryService
-
 RUN go mod tidy
 RUN go build -o app .
 
