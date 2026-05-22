@@ -392,49 +392,53 @@ pipeline {
             steps {
                 sh '''
                 echo "VERIFY FULL SYSTEM"
-
-                PAYMENT=$(curl -s -X POST http://host.docker.internal:8082/payment \
+        
+                # ================= WAIT SERVICE READY =================
+                for i in {1..10}; do
+                  if curl -s http://host.docker.internal:8082/payment > /dev/null; then
+                    echo "Payment service ready"
+                    break
+                  fi
+                  echo "Waiting payment service..."
+                  sleep 3
+                done
+        
+                # ================= START VERIFY =================
+                PAYMENT=$(curl -s -f -X POST http://host.docker.internal:8082/payment \
                 -H "Content-Type: application/json" \
                 -d '{"amount":1,"paid":1}')
-
-                echo $PAYMENT | grep "PAID" || exit 1
-
-                ORDER=$(curl -s -X POST http://host.docker.internal:8081/order \
+        
+                echo $PAYMENT | grep -q "PAID" || exit 1
+        
+                ORDER=$(curl -s -f -X POST http://host.docker.internal:8081/order \
                 -H "Content-Type: application/json" \
                 -d '{"user_id":1,"weight_kg":2,"distance_km":5,"base_price":10000}')
-
-                TRACKING=$(echo $ORDER | jq -r '.tracking_number')
-
-                if [ -z "$TRACKING" ] || [ "$TRACKING" = "null" ]; then
+        
+                TRACKING=$(echo $ORDER | sed -n 's/.*"tracking_number":"\\([^"]*\\)".*/\\1/p')
+        
+                if [ -z "$TRACKING" ]; then
                     echo "Tracking not found"
                     exit 1
                 fi
-
-                curl -s -X POST http://host.docker.internal:8086/delivery \
+        
+                curl -s -f -X POST http://host.docker.internal:8086/delivery \
                 -H "Content-Type: application/json" \
-                -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}" || exit 1
-
-                curl -s -X POST http://host.docker.internal:8085/shipment \
+                -d "{\"tracking_number\":\"$TRACKING\",\"address\":\"Bandung\"}"
+        
+                curl -s -f -X POST http://host.docker.internal:8085/shipment \
                 -H "Content-Type: application/json" \
-                -d "{\"tracking_number\":\"$TRACKING\"}" || exit 1
-
-                curl -s -X POST http://host.docker.internal:8083/pickup \
+                -d "{\"tracking_number\":\"$TRACKING\"}"
+        
+                curl -s -f -X POST http://host.docker.internal:8083/pickup \
                 -H "Content-Type: application/json" \
-                -d '{"order_id":"ORD1","payment_status":"paid","weight":2}' || exit 1
-
-                curl -s http://host.docker.internal:8084/warehouse || exit 1
-
-                # ================= TRACKING VERIFY =================
-                curl -s http://host.docker.internal:8087/tracking || true
-
-                # ================= NOTIFICATION VERIFY =================
-                curl -s http://host.docker.internal:8088/notification || true
-
+                -d '{"order_id":"ORD1","payment_status":"paid","weight":2}'
+        
+                curl -s -f http://host.docker.internal:8084/warehouse
+        
                 echo "ALL SERVICES VERIFIED"
                 '''
             }
         }
-    }
 
     // =====================================================
     // POST
