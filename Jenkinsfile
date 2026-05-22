@@ -169,9 +169,7 @@ pipeline {
                     docker network rm $NETWORK || true
 
                     # ================= CREATE NETWORK =================
-                    docker network create $NETWORK
-
-                    docker network connect $NETWORK jenkins-server || true
+                    docker network inspect $NETWORK >/dev/null 2>&1 || docker network create $NETWORK
 
                     # ================= MONGODB =================
                     docker run -d \
@@ -515,7 +513,7 @@ pipeline {
             test-tracking \
             test-notification || true
 
-            docker network rm $NETWORK || true
+            docker network disconnect $NETWORK jenkins-server || true
             '''
         }
     }
