@@ -31,14 +31,12 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	status := ValidatePayment(req.Amount, req.Paid)
 
-	// 🔥 CLEAN TABLE (ANTI ERROR TEST)
 	_, err = db.Exec("TRUNCATE TABLE payments RESTART IDENTITY")
 	if err != nil {
 		http.Error(w, "Cleanup failed", 500)
 		return
 	}
-
-	// 🔥 INSERT KE DB
+	
 	_, err = db.Exec(
 		`INSERT INTO payments 
 		(order_id, amount, paid_amount, payment_method, status, transaction_id, created_at, paid_at) 
@@ -62,22 +60,20 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	var err error
 
-	// 🔥 INIT DB
+	
 	db, err = sql.Open("postgres",
 		"host=host.docker.internal port=5432 user=postgres password=admin123 dbname=payment_db sslmode=disable")
 	if err != nil {
 		log.Fatal("DB connection failed:", err)
 	}
 
-	// 🔥 CEK KONEKSI
 	err = db.Ping()
 	if err != nil {
 		log.Fatal("DB not reachable:", err)
 	}
 
-	log.Println("✅ Connected to DB")
+	log.Println(" Connected to DB")
 
-	// 🔥 AUTO CREATE TABLE (BIAR GA ERROR)
 	_, err = db.Exec(`
 	CREATE TABLE IF NOT EXISTS payments (
 		id SERIAL PRIMARY KEY,
