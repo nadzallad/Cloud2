@@ -9,14 +9,15 @@ import (
 
 func TestPickupEndpoint(t *testing.T) {
 	reqBody := map[string]interface{}{
-		"order_id":       "ORD1",
-		"payment_status": "paid",
-		"weight":         2,
+		"user_id":         1,
+		"tracking_number": "TRK001",
+		"payment_status":  "paid",
+		"weight":          2,
 	}
 
 	body, _ := json.Marshal(reqBody)
 
-	resp, err := http.Post("http://localhost:8083/pickup", "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post("http://localhost:8089/pickup", "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}

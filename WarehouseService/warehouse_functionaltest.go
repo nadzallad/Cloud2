@@ -7,7 +7,12 @@ import (
 )
 
 func TestWarehouseAPI(t *testing.T) {
-	json := []byte(`{"stock":10}`)
+	json := []byte(`{
+		"user_id":1,
+		"tracking_number":"TRK001",
+		"item_name":"Laptop",
+		"stock":10
+	}`)
 
 	resp, err := http.Post(
 		"http://localhost:8084/warehouse",
