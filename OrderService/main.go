@@ -26,12 +26,22 @@ type OrderRequest struct {
 }
 
 type OrderResponse struct {
+	OrderID      int     `json:"order_id"`
 	UserID       int     `json:"user_id"`
-	NoResi       string  `json:"no_resi"`
 	ShippingCost float64 `json:"shipping_cost"`
 	TotalPrice   float64 `json:"total_price"`
 	ServiceType  string  `json:"service_type"`
 	Status       string  `json:"status"`
+}
+
+type ConfirmPaymentRequest struct {
+	OrderID int `json:"order_id"`
+}
+
+type ConfirmPaymentResponse struct {
+	OrderID int    `json:"order_id"`
+	NoResi  string `json:"no_resi"`
+	Status  string `json:"status"`
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +56,6 @@ func orderHandler(w http.ResponseWriter, r *http.Request) {
 	totalPrice := CalculateTotalPrice(req.BasePrice, shippingCost)
 
 	var orderID int64
-	var noResi string
 
 	if db != nil {
 		err := db.QueryRow(`
@@ -61,24 +70,63 @@ func orderHandler(w http.ResponseWriter, r *http.Request) {
 			req.BasePrice, shippingCost, totalPrice,
 		).Scan(&orderID)
 
-		if err == nil {
-			noResi = GenerateNoResi(orderID)
-			db.Exec(`UPDATE orders SET no_resi=$1 WHERE order_id=$2`, noResi, orderID)
-		} else {
+		if err != nil {
 			log.Println("DB error:", err)
-			noResi = GenerateNoResi(0)
+			http.Error(w, "Failed to create order", http.StatusInternalServerError)
+			return
 		}
-	} else {
-		noResi = GenerateNoResi(0)
 	}
 
 	res := OrderResponse{
+		OrderID:      int(orderID),
 		UserID:       req.UserID,
-		NoResi:       noResi,
 		ShippingCost: shippingCost,
 		TotalPrice:   totalPrice,
 		ServiceType:  req.ServiceType,
 		Status:       "WAITING_PAYMENT",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
+
+func confirmPaymentHandler(w http.ResponseWriter, r *http.Request) {
+	var req ConfirmPaymentRequest
+	json.NewDecoder(r.Body).Decode(&req)
+
+	if db == nil {
+		http.Error(w, "DB not connected", http.StatusInternalServerError)
+		return
+	}
+
+	// cek order ada dan statusnya WAITING_PAYMENT
+	var status string
+	err := db.QueryRow(`SELECT status FROM orders WHERE order_id=$1`, req.OrderID).Scan(&status)
+	if err != nil {
+		http.Error(w, "Order not found", http.StatusNotFound)
+		return
+	}
+	if status != "WAITING_PAYMENT" {
+		http.Error(w, "Order already processed", http.StatusBadRequest)
+		return
+	}
+
+	// generate no_resi dan insert ke tabel resi
+	noResi := GenerateNoResi(int64(req.OrderID))
+	_, err = db.Exec(`INSERT INTO resi (order_id, no_resi) VALUES ($1, $2)`, req.OrderID, noResi)
+	if err != nil {
+		log.Println("Resi error:", err)
+		http.Error(w, "Failed to create resi", http.StatusInternalServerError)
+		return
+	}
+
+	// update status order jadi PAID
+	db.Exec(`UPDATE orders SET status='PAID' WHERE order_id=$1`, req.OrderID)
+
+	res := ConfirmPaymentResponse{
+		OrderID: req.OrderID,
+		NoResi:  noResi,
+		Status:  "PAID",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -95,6 +143,7 @@ func main() {
 	}
 
 	http.HandleFunc("/order", orderHandler)
+	http.HandleFunc("/order/confirm-payment", confirmPaymentHandler)
 	fmt.Println("Order Service running on :8081")
 	http.ListenAndServe(":8081", nil)
 }

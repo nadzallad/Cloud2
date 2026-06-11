@@ -55,9 +55,16 @@ func CreateTable() error {
 		base_price DECIMAL(10,2),
 		shipping_cost DECIMAL(10,2),
 		total_price DECIMAL(10,2),
-		no_resi VARCHAR(100) UNIQUE,
 		status VARCHAR(50) DEFAULT 'WAITING_PAYMENT',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS resi (
+		resi_id SERIAL PRIMARY KEY,
+		order_id INT NOT NULL REFERENCES orders(order_id),
+		no_resi VARCHAR(100) UNIQUE NOT NULL,
+		issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		status VARCHAR(50) DEFAULT 'ACTIVE'
 	);`
 	_, err := db.Exec(query)
 	return err
