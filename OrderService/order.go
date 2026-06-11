@@ -2,7 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -10,6 +15,8 @@ import (
 )
 
 var db *sql.DB
+
+const orsAPIKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjZiOWFmZTFiYmVmYzRjMDlhMTkxNjUzMzQ3NDdkZDYyIiwiaCI6Im11cm11cjY0In0="
 
 func InitDB() error {
 	host := os.Getenv("DB_HOST")
@@ -36,6 +43,17 @@ func InitDB() error {
 
 func CreateTable() error {
 	query := `
+	CREATE TABLE IF NOT EXISTS provinces (
+		province_id SERIAL PRIMARY KEY,
+		name VARCHAR(100) NOT NULL UNIQUE
+	);
+
+	CREATE TABLE IF NOT EXISTS cities (
+		city_id SERIAL PRIMARY KEY,
+		name VARCHAR(100) NOT NULL,
+		province_id INT NOT NULL REFERENCES provinces(province_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS orders (
 		order_id SERIAL PRIMARY KEY,
 		user_id INT NOT NULL,
@@ -49,6 +67,8 @@ func CreateTable() error {
 		item_type VARCHAR(50),
 		weight_kg DECIMAL(10,2),
 		distance_km DECIMAL(10,2),
+		origin_city_id INT REFERENCES cities(city_id),
+		destination_city_id INT REFERENCES cities(city_id),
 		origin_city VARCHAR(100),
 		destination_city VARCHAR(100),
 		service_type VARCHAR(50) DEFAULT 'regular',
@@ -70,21 +90,186 @@ func CreateTable() error {
 	return err
 }
 
+func SeedData() error {
+	var count int
+	db.QueryRow(`SELECT COUNT(*) FROM provinces`).Scan(&count)
+	if count > 0 {
+		return nil
+	}
+
+	_, err := db.Exec(`
+	INSERT INTO provinces (name) VALUES
+		('Jawa Barat'),
+		('Jawa Tengah'),
+		('Jawa Timur'),
+		('DKI Jakarta'),
+		('DI Yogyakarta'),
+		('Banten'),
+		('Sumatera Utara'),
+		('Sumatera Selatan'),
+		('Kalimantan Timur'),
+		('Sulawesi Selatan');
+
+	INSERT INTO cities (name, province_id) VALUES
+		('Bandung', 1),
+		('Bogor', 1),
+		('Depok', 1),
+		('Bekasi', 1),
+		('Cimahi', 1),
+		('Semarang', 2),
+		('Solo', 2),
+		('Magelang', 2),
+		('Surabaya', 3),
+		('Malang', 3),
+		('Sidoarjo', 3),
+		('Jakarta Pusat', 4),
+		('Jakarta Selatan', 4),
+		('Jakarta Utara', 4),
+		('Jakarta Barat', 4),
+		('Jakarta Timur', 4),
+		('Yogyakarta', 5),
+		('Sleman', 5),
+		('Tangerang', 6),
+		('Serang', 6),
+		('Medan', 7),
+		('Palembang', 8),
+		('Samarinda', 9),
+		('Balikpapan', 9),
+		('Makassar', 10);
+	`)
+	return err
+}
+
+func GetCityID(cityName string) (int, error) {
+	var cityID int
+	err := db.QueryRow(`SELECT city_id FROM cities WHERE LOWER(name) = LOWER($1)`, cityName).Scan(&cityID)
+	return cityID, err
+}
+
+func InsertCity(cityName string) (int, error) {
+	// insert ke province "Lainnya" (id 99), buat dulu kalau belum ada
+	db.Exec(`INSERT INTO provinces (province_id, name) VALUES (99, 'Lainnya') ON CONFLICT DO NOTHING`)
+	var cityID int
+	err := db.QueryRow(`
+		INSERT INTO cities (name, province_id) VALUES ($1, 99) RETURNING city_id`,
+		cityName,
+	).Scan(&cityID)
+	return cityID, err
+}
+
+type geocodeResult struct {
+	Lat float64
+	Lon float64
+}
+
+func geocodeCity(cityName string) (geocodeResult, error) {
+	apiURL := fmt.Sprintf(
+		"https://api.openrouteservice.org/geocode/search?api_key=%s&text=%s&size=1",
+		orsAPIKey,
+		url.QueryEscape(cityName+", Indonesia"),
+	)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return geocodeResult{}, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		Features []struct {
+			Geometry struct {
+				Coordinates []float64 `json:"coordinates"`
+			} `json:"geometry"`
+		} `json:"features"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return geocodeResult{}, err
+	}
+
+	if len(result.Features) == 0 {
+		return geocodeResult{}, fmt.Errorf("city not found: %s", cityName)
+	}
+
+	coords := result.Features[0].Geometry.Coordinates
+	return geocodeResult{Lon: coords[0], Lat: coords[1]}, nil
+}
+
+func GetDistanceORS(originCity string, destinationCity string) (float64, error) {
+	origin, err := geocodeCity(originCity)
+	if err != nil {
+		return 0, fmt.Errorf("geocode origin failed: %v", err)
+	}
+
+	dest, err := geocodeCity(destinationCity)
+	if err != nil {
+		return 0, fmt.Errorf("geocode destination failed: %v", err)
+	}
+
+	apiURL := fmt.Sprintf(
+		"https://api.openrouteservice.org/v2/directions/driving-car?api_key=%s&start=%f,%f&end=%f,%f",
+		orsAPIKey,
+		origin.Lon, origin.Lat,
+		dest.Lon, dest.Lat,
+	)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		Features []struct {
+			Properties struct {
+				Summary struct {
+					Distance float64 `json:"distance"`
+				} `json:"summary"`
+			} `json:"properties"`
+		} `json:"features"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	if len(result.Features) == 0 {
+		return 0, fmt.Errorf("no route found")
+	}
+
+	distanceKm := result.Features[0].Properties.Summary.Distance / 1000
+	return distanceKm, nil
+}
+
 func GenerateNoResi(orderID int64) string {
 	return fmt.Sprintf("LOG-%d-%d", orderID, time.Now().Unix())
 }
 
 func CalculateShippingCost(weightKg float64, distanceKm float64, serviceType string) float64 {
-	base := (weightKg * 5000) + (distanceKm * 1000)
+	roundedWeight := math.Ceil(weightKg)
 
+	var tarifPerKm float64
 	switch serviceType {
 	case "express":
-		return base * 1.5
+		tarifPerKm = 150
 	case "same_day":
-		return base * 2
+		tarifPerKm = 200
 	default:
-		return base
+		tarifPerKm = 100
 	}
+
+	ongkir := roundedWeight * tarifPerKm * distanceKm
+	ongkir = math.Round(ongkir)
+
+	if ongkir < 15000 {
+		ongkir = 15000
+	}
+
+	return ongkir
 }
 
 func CalculateTotalPrice(basePrice float64, shippingCost float64) float64 {
