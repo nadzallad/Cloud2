@@ -37,7 +37,7 @@ func InitDB() error {
 func CreateTable() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS orders (
-		id SERIAL PRIMARY KEY,
+		order_id SERIAL PRIMARY KEY,
 		user_id INT NOT NULL,
 		sender_name VARCHAR(100),
 		sender_phone VARCHAR(20),
@@ -55,7 +55,7 @@ func CreateTable() error {
 		base_price DECIMAL(10,2),
 		shipping_cost DECIMAL(10,2),
 		total_price DECIMAL(10,2),
-		tracking_number VARCHAR(100) UNIQUE,
+		no_resi VARCHAR(100) UNIQUE,
 		status VARCHAR(50) DEFAULT 'WAITING_PAYMENT',
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -63,7 +63,7 @@ func CreateTable() error {
 	return err
 }
 
-func GenerateTrackingNumber(orderID int64) string {
+func GenerateNoResi(orderID int64) string {
 	return fmt.Sprintf("LOG-%d-%d", orderID, time.Now().Unix())
 }
 

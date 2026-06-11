@@ -26,12 +26,12 @@ type OrderRequest struct {
 }
 
 type OrderResponse struct {
-	UserID         int     `json:"user_id"`
-	TrackingNumber string  `json:"tracking_number"`
-	ShippingCost   float64 `json:"shipping_cost"`
-	TotalPrice     float64 `json:"total_price"`
-	ServiceType    string  `json:"service_type"`
-	Status         string  `json:"status"`
+	UserID       int     `json:"user_id"`
+	NoResi       string  `json:"no_resi"`
+	ShippingCost float64 `json:"shipping_cost"`
+	TotalPrice   float64 `json:"total_price"`
+	ServiceType  string  `json:"service_type"`
+	Status       string  `json:"status"`
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) {
@@ -46,14 +46,14 @@ func orderHandler(w http.ResponseWriter, r *http.Request) {
 	totalPrice := CalculateTotalPrice(req.BasePrice, shippingCost)
 
 	var orderID int64
-	var trackingNumber string
+	var noResi string
 
 	if db != nil {
 		err := db.QueryRow(`
 			INSERT INTO orders 
 			(user_id, sender_name, sender_phone, sender_address, receiver_name, receiver_phone, receiver_address, item_name, item_type, weight_kg, distance_km, origin_city, destination_city, service_type, base_price, shipping_cost, total_price, status)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'WAITING_PAYMENT')
-			RETURNING id`,
+			RETURNING order_id`,
 			req.UserID, req.SenderName, req.SenderPhone, req.SenderAddress,
 			req.ReceiverName, req.ReceiverPhone, req.ReceiverAddress,
 			req.ItemName, req.ItemType, req.WeightKg, req.DistanceKm,
@@ -62,23 +62,23 @@ func orderHandler(w http.ResponseWriter, r *http.Request) {
 		).Scan(&orderID)
 
 		if err == nil {
-			trackingNumber = GenerateTrackingNumber(orderID)
-			db.Exec(`UPDATE orders SET tracking_number=$1 WHERE id=$2`, trackingNumber, orderID)
+			noResi = GenerateNoResi(orderID)
+			db.Exec(`UPDATE orders SET no_resi=$1 WHERE order_id=$2`, noResi, orderID)
 		} else {
 			log.Println("DB error:", err)
-			trackingNumber = GenerateTrackingNumber(0)
+			noResi = GenerateNoResi(0)
 		}
 	} else {
-		trackingNumber = GenerateTrackingNumber(0)
+		noResi = GenerateNoResi(0)
 	}
 
 	res := OrderResponse{
-		UserID:         req.UserID,
-		TrackingNumber: trackingNumber,
-		ShippingCost:   shippingCost,
-		TotalPrice:     totalPrice,
-		ServiceType:    req.ServiceType,
-		Status:         "WAITING_PAYMENT",
+		UserID:       req.UserID,
+		NoResi:       noResi,
+		ShippingCost: shippingCost,
+		TotalPrice:   totalPrice,
+		ServiceType:  req.ServiceType,
+		Status:       "WAITING_PAYMENT",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
